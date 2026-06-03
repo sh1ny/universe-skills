@@ -11,6 +11,8 @@ relationships:
     type: antagonist
   - character: kael-voss
     type: enemy
+locations:
+  - ashen-citadel
 tags:
   - political-leader
   - former-ember-user

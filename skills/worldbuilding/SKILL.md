@@ -27,7 +27,7 @@ A story project must already exist (created via the story-init skill). Verify by
 5. Write the file using `references/location-template.md`
 6. Save to `worldbuilding/locations/{name-kebab}.md`
 7. Update `worldbuilding/_index.md` locations table
-8. If notable characters are listed, verify those character files exist and add location references to them
+8. If notable characters are listed, verify those character files exist and add this location's kebab-case identifier to each character file's `locations` frontmatter list
 
 ## Creating a System
 
@@ -50,6 +50,7 @@ A story project must already exist (created via the story-init skill). Verify by
 ## Cross-Referencing
 
 - Locations reference characters via `notable-characters` in frontmatter
+- Characters reference locations via `locations` in frontmatter
 - Systems reference practitioners via character tags
 - When a location is used in a chapter, the chapter's frontmatter `locations` field links back
 - Keep the `worldbuilding/_index.md` world overview section current as elements are added

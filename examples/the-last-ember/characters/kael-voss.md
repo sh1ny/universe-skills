@@ -10,6 +10,8 @@ relationships:
     type: sibling
   - character: lord-maren
     type: enemy
+locations:
+  - whispering-vale
 tags:
   - scout
   - royal-bloodline

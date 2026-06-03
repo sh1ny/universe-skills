@@ -67,7 +67,7 @@ Each arc tracks its own foreshadowing in the "Foreshadowing" table:
 - **Planted:** What hint or setup is placed
 - **Payoff:** What the payoff will be
 - **Chapter Planted / Chapter Payoff:** Where each occurs
-- **Status:** `planted` or `paid-off`
+- **Status:** `planned`, `planted`, or `paid-off`
 
 During chapter writing, flag any `planted` items that haven't been paid off as reminders.
 

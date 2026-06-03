@@ -1,11 +1,14 @@
 ---
-title: Plot Overview
+type: plot-registry
+story: the-last-ember
 structure: three-act
 ---
 
-# Plot
+# Plot Structure
 
-## Story Structure: Three-Act
+## Story Structure
+
+**Model:** Three-Act Structure
 
 | Act | Chapters | Summary |
 |-----|----------|---------|
@@ -13,16 +16,16 @@ structure: three-act
 | Act 2: Confrontation | 4–8 | Gathering allies and ember power, escalating conflict with Maren, corruption takes hold |
 | Act 3: Resolution | 9–11 | Final confrontation, sacrifice, and the fate of the embers |
 
-## Arc Registry
+## Arcs
 
-| Arc | Type | Status | Characters | File |
-|-----|------|--------|------------|------|
-| Sera's Reclamation | Main | In Progress | sera-voss, lord-maren, kael-voss | [seras-reclamation](arcs/seras-reclamation.md) |
+| Name | Type | Status | File |
+|------|------|--------|------|
+| Sera's Reclamation | main | in-progress | [seras-reclamation](arcs/seras-reclamation.md) |
 
 ## Theme Tracking
 
-| Theme | Arcs | Status |
-|-------|------|--------|
-| Redemption | Sera's Reclamation | Introduced in Ch 1 |
-| Power and Corruption | Sera's Reclamation | Introduced in Ch 1 |
-| The Cost of Legacy | Sera's Reclamation | Planted in Ch 1 |
+| Theme | Arcs | Chapters |
+|-------|------|----------|
+| redemption | Sera's Reclamation | Ch 1 |
+| power-and-corruption | Sera's Reclamation | Ch 1 |
+| the-cost-of-legacy | Sera's Reclamation | Ch 1 |

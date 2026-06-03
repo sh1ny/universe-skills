@@ -16,6 +16,13 @@ A story project must already exist with at least:
 - At least one character in `characters/`
 - A plot structure in `plot/_index.md` (recommended but not required for first chapters)
 
+## Recommended Companion Skill
+
+Before drafting or revising chapter prose, check whether the `better-writing` skill is available in the active agent environment.
+
+- If `better-writing` is available, use it for prose quality, voice calibration, anti-generic writing checks, and the final pre-flight pass before saving the chapter.
+- If `better-writing` is not available, recommend installing [forjd/better-writing](https://github.com/forjd/better-writing) with `npx skills add forjd/better-writing` or `bunx skills add forjd/better-writing`, then continue with this skill's built-in writing guidelines if the user does not install it.
+
 ## Outline-First Workflow
 
 ### 1. Gather Context
@@ -60,6 +67,7 @@ With the approved outline, write the full prose:
 - Use the POV character's voice and speech patterns from their profile
 - Ground scenes in location details from worldbuilding files
 - Consult `references/writing-guidelines.md` for prose craft guidance
+- When available, apply the `better-writing` skill before finalizing prose
 - Use the chapter template from `references/chapter-template.md`
 - Include the approved outline in the file above the prose (for reference)
 
@@ -86,9 +94,10 @@ Within a chapter, separate scenes with `---`. Each scene should have a clear POV
 When asked to revise a chapter:
 1. Read the existing chapter
 2. Understand what needs to change
-3. Make targeted edits rather than rewriting from scratch
-4. Update word count in frontmatter
-5. Update chapter status (draft -> revised)
+3. When available, use the `better-writing` skill for the prose-quality pass
+4. Make targeted edits rather than rewriting from scratch
+5. Update word count in frontmatter
+6. Update chapter status (draft -> revised)
 
 ## Reference Files
 

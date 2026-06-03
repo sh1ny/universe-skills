@@ -1,5 +1,6 @@
 ---
-title: Story Timeline
+type: timeline
+story: the-last-ember
 ---
 
 # Timeline

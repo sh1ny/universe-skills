@@ -40,9 +40,9 @@ How the arc resolves. What changes as a result. How the world and characters are
 
 Ordered list of specific story events, linked to chapters:
 
-| # | Plot Point | Chapter | Notes |
-|---|-----------|---------|-------|
-| 1 | | | |
+| # | Plot Point | Act | Chapter | Status | Notes |
+|---|------------|-----|---------|--------|-------|
+| 1 | | | {planned|written|revised} | |
 
 ## Foreshadowing
 
@@ -50,4 +50,4 @@ Track what's planted and where it pays off:
 
 | Planted | Payoff | Chapter Planted | Chapter Payoff | Status |
 |---------|--------|-----------------|----------------|--------|
-| | | | | {planted\|paid-off} |
+| | | | | {planned|planted|paid-off} |

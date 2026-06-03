@@ -13,7 +13,6 @@
         "url": "https://github.com/danjdewhurst/story-skills.git"
       },
       "description": "A suite of cross-referenced skills for end-to-end story writing powered by markdown.",
-      "version": "0.1.0",
       "author": {
         "name": "Daniel Dewhurst",
         "url": "https://github.com/danjdewhurst"

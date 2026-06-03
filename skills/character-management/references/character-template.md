@@ -13,6 +13,8 @@ aliases:
 relationships:
   - character: {other-character-kebab}
     type: {relationship-type}
+locations:
+  - {location-kebab}
 tags:
   - {tag-1}
   - {tag-2}
@@ -35,6 +37,10 @@ Key events that shaped who they are. Only include what's relevant to the story.
 ## Motivations & Goals
 
 What drives them. What they want (external goal) and what they need (internal goal). How these conflict.
+
+## Location References
+
+Important places tied to this character. Keep this list in sync with `notable-characters` in location files.
 
 ## Voice & Speech Patterns
 

@@ -66,6 +66,7 @@ Indent children under parents. Note marriages/partnerships inline.
 ## Cross-Referencing
 
 - When a character is referenced in worldbuilding (e.g., a location's `notable-characters`), ensure the link exists both ways
+- Character-location backlinks live in the character file's `locations` frontmatter list
 - When a character appears in a plot arc, ensure they're listed in the arc's `characters` frontmatter
 - Character tags should be consistent across the project (e.g., if `magic-user` is used, always use that exact tag)
 

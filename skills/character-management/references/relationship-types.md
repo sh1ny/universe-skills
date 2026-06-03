@@ -15,6 +15,8 @@ Use these types in character frontmatter `relationships[].type` field.
 | grandchild | Grandchild of the other character |
 | uncle | Uncle of the other character |
 | aunt | Aunt of the other character |
+| nephew | Nephew of the other character |
+| niece | Niece of the other character |
 | cousin | Cousin |
 | in-law | Related by marriage (specify in notes) |
 

@@ -35,19 +35,19 @@ Sera chooses to unseal the ember well and release its power back into the land r
 
 ## Plot Points
 
-| # | Event | Act | Chapter | Status |
-|---|-------|-----|---------|--------|
-| 1 | Sera feels the embers fading in the Vale | Act 1 | Ch 1 | Written |
-| 2 | Kael scouts the citadel, confirms Maren's increased patrols | Act 1 | Ch 1 | Written |
-| 3 | Sera absorbs a wild ember, feels its pull | Act 1 | Ch 1 | Written |
-| 4 | Sera and Kael commit to returning | Act 1 | Ch 2 | Planned |
-| 5 | First contact with citadel resistance | Act 1 | Ch 3 | Planned |
+| # | Plot Point | Act | Chapter | Status | Notes |
+|---|------------|-----|---------|--------|-------|
+| 1 | Sera feels the embers fading in the Vale | Act 1 | Ch 1 | written | Opening beat |
+| 2 | Kael scouts the citadel, confirms Maren's increased patrols | Act 1 | Ch 1 | written | Raises external pressure |
+| 3 | Sera absorbs a wild ember, feels its pull | Act 1 | Ch 1 | written | First visible cost of magic |
+| 4 | Sera and Kael commit to returning | Act 1 | Ch 1 | written | Launches the reclamation |
+| 5 | First contact with citadel resistance | Act 1 | Ch 3 | planned | |
 
 ## Foreshadowing
 
-| Plant | Payoff | Planted | Paid Off |
-|-------|--------|---------|----------|
-| Sera's grey hair spreading | Ember corruption is taking hold | Ch 1 | — |
-| Maren's withered hand | He sacrificed his own magic — why? | Ch 1 | — |
-| The embers fading faster near the citadel | Something is draining them | Ch 1 | — |
-| Kael's comment about Sera "sounding like him" | Sera is becoming what she hates | Ch 1 | — |
+| Planted | Payoff | Chapter Planted | Chapter Payoff | Status |
+|---------|--------|-----------------|----------------|--------|
+| Sera's grey hair spreading | Ember corruption is taking hold | Ch 1 | — | planted |
+| Maren's withered hand | He sacrificed his own magic — why? | — | — | planned |
+| The embers fading faster near the citadel | Something is draining them | — | — | planned |
+| Kael's comment about Sera "sounding like him" | Sera is becoming what she hates | Ch 1 | — | planted |

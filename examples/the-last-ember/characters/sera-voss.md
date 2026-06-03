@@ -11,6 +11,8 @@ relationships:
     type: sibling
   - character: lord-maren
     type: antagonist
+locations:
+  - whispering-vale
 tags:
   - magic-user
   - royal-bloodline

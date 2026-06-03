@@ -1,16 +1,17 @@
 ---
-title: Character Registry
+type: character-registry
+story: the-last-ember
 ---
 
 # Characters
 
-## Main Cast
+## Registry
 
-| Character | Role | Status | File |
-|-----------|------|--------|------|
-| Sera Voss | Protagonist | Alive | [sera-voss](sera-voss.md) |
-| Kael Voss | Supporting | Alive | [kael-voss](kael-voss.md) |
-| Lord Maren | Antagonist | Alive | [lord-maren](lord-maren.md) |
+| Name | Role | Status | File |
+|------|------|--------|------|
+| Sera Voss | protagonist | alive | [sera-voss](sera-voss.md) |
+| Kael Voss | supporting | alive | [kael-voss](kael-voss.md) |
+| Lord Maren | antagonist | alive | [lord-maren](lord-maren.md) |
 
 ## Relationship Map
 

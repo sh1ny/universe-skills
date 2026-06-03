@@ -1,0 +1,28 @@
+{
+  "name": "story-skills",
+  "version": "0.1.3",
+  "description": "A suite of cross-referenced skills for end-to-end story writing powered by markdown. Covers story initialization, character management, worldbuilding, plot structure, and chapter writing.",
+  "author": {
+    "name": "Daniel Dewhurst",
+    "url": "https://github.com/danjdewhurst"
+  },
+  "homepage": "https://github.com/danjdewhurst/story-skills",
+  "repository": "https://github.com/danjdewhurst/story-skills",
+  "license": "MIT",
+  "keywords": ["story", "writing", "fiction", "characters", "worldbuilding", "chapters"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Story Skills",
+    "shortDescription": "Plan stories, manage characters and worlds, and write chapters.",
+    "longDescription": "Story Skills adds end-to-end fiction-writing workflows for Codex: story initialization, character management, worldbuilding, plot structure, and chapter writing with markdown registries and YAML frontmatter.",
+    "developerName": "Daniel Dewhurst",
+    "category": "Productivity",
+    "capabilities": ["Plan", "Write"],
+    "defaultPrompt": [
+      "Start a new story.",
+      "Create a character profile.",
+      "Write the next chapter."
+    ],
+    "brandColor": "#7C3AED"
+  }
+}
