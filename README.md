@@ -2,30 +2,31 @@
 
 # ✨ Story Skills
 
-**End-to-end story writing powered by markdown and AI agents.**
+**Agent Skills for end-to-end fiction writing in markdown.**
 
-Manage characters, build worlds, structure plots, and write chapters — all as structured markdown files with YAML frontmatter.
+Manage characters, build worlds, structure plots, and write chapters as structured markdown files with YAML frontmatter. Story Skills follows the open Agent Skills standard and ships with Codex and Claude Code plugin packaging.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-SKILL.md-blue)](https://agentskills.io)
+[![Codex](https://img.shields.io/badge/Codex-plugin-10A37F)](https://developers.openai.com/codex)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-blueviolet)](https://docs.anthropic.com/en/docs/claude-code)
 
 </div>
 
 ---
 
-> Works with **Claude Code**, **GitHub Copilot**, **Cursor**, **Windsurf**, **Gemini CLI**, **OpenAI Codex**, **OpenCode**, and any agent that supports the `SKILL.md` standard.
+> Built on the open **Agent Skills** standard. Install as a **Codex** or **Claude Code** plugin, or copy the `skills/` folders into any agent that supports `SKILL.md`.
 
 ## 🚀 Quick Start
 
 ```shell
-# Claude Code — install in two commands
-/plugin marketplace add danjdewhurst/story-skills
-/plugin install story-skills@story-skills
-
-# Codex — install in two commands
+# Codex plugin
 codex plugin marketplace add danjdewhurst/story-skills
 codex plugin add story-skills@story-skills
+
+# Claude Code plugin
+/plugin marketplace add danjdewhurst/story-skills
+/plugin install story-skills@story-skills
 ```
 
 Then just say **"Start a new story"** and the agent takes it from there.
@@ -47,6 +48,31 @@ bunx skills add forjd/better-writing
 Story Skills works without it, but agents should use `better-writing` when it is available for chapter drafting, revision, and final prose polish.
 
 ## 📦 Installation
+
+<details>
+<summary><strong>Codex</strong></summary>
+
+```shell
+# Add the marketplace
+codex plugin marketplace add danjdewhurst/story-skills
+
+# Install the plugin
+codex plugin add story-skills@story-skills
+```
+
+For local skill authoring without plugin install:
+
+```shell
+git clone https://github.com/danjdewhurst/story-skills.git
+cp -r story-skills/skills/* ~/.agents/skills/
+
+# Or install to a specific repo as repo-scoped skills
+cp -r story-skills/skills/* .agents/skills/
+```
+
+Codex detects repo and user skills automatically, but the plugin install is recommended for this bundle.
+
+</details>
 
 <details>
 <summary><strong>Claude Code</strong></summary>
@@ -139,33 +165,6 @@ Gemini will auto-discover the skills and activate them when your request matches
 </details>
 
 <details>
-<summary><strong>Codex (OpenAI)</strong></summary>
-
-[Codex](https://github.com/openai/codex) uses the same `SKILL.md` format via the [Agent Skills](https://agentskills.io) standard:
-
-```shell
-# Add the marketplace
-codex plugin marketplace add danjdewhurst/story-skills
-
-# Install the plugin
-codex plugin add story-skills@story-skills
-```
-
-For local skill authoring without plugin install:
-
-```shell
-git clone https://github.com/danjdewhurst/story-skills.git
-cp -r story-skills/skills/* ~/.agents/skills/
-
-# Or install to a specific repo as repo-scoped skills
-cp -r story-skills/skills/* .agents/skills/
-```
-
-Codex detects repo and user skills automatically, but the plugin install is recommended for this bundle.
-
-</details>
-
-<details>
 <summary><strong>OpenCode</strong></summary>
 
 The skills use the same `SKILL.md` format that [OpenCode](https://opencode.ai) supports natively:
@@ -180,7 +179,7 @@ cp -r story-skills/skills/* .opencode/skills/
 cp -r story-skills/skills/* ~/.config/opencode/skills/
 ```
 
-OpenCode also searches `.claude/skills/` paths, so project-level Claude skills are automatically discovered.
+OpenCode also searches common skill paths such as `.claude/skills/`, so compatible project-level skills can be discovered automatically.
 
 </details>
 
@@ -245,7 +244,7 @@ Every story element is a markdown file with YAML frontmatter. Skills cross-refer
 
 ## 🚢 Releasing
 
-Claude Code uses `.claude-plugin/plugin.json` as the Claude plugin version source. Codex uses `.codex-plugin/plugin.json` as the Codex plugin version source. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state.
+Codex uses `.codex-plugin/plugin.json` as the Codex plugin version source. Claude Code uses `.claude-plugin/plugin.json` as the Claude plugin version source. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state.
 
 Distribution metadata lives in `.claude-plugin/` for Claude Code and `.codex-plugin/` plus `.agents/plugins/marketplace.json` for Codex. The `plugins/story-skills` symlink is intentional: Codex marketplace entries must point at a child plugin directory, so the symlink exposes this repo-root plugin without duplicating the `skills/` files.
 
