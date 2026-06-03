@@ -2,9 +2,9 @@
 
 # ✨ Story Skills
 
-**Agent Skills for end-to-end fiction writing in markdown.**
+**Agent Skills for planning, tracking, and drafting fiction in markdown.**
 
-Manage characters, build worlds, structure plots, and write chapters as structured markdown files with YAML frontmatter. Story Skills follows the open Agent Skills standard and ships with Codex and Claude Code plugin packaging.
+Story Skills gives agents a shared project format for fiction: a story bible, character files, worldbuilding notes, plot arcs, timelines, and chapter drafts. Everything is plain markdown with YAML frontmatter, packaged as standard Agent Skills with Codex and Claude Code plugin support.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-SKILL.md-blue)](https://agentskills.io)
@@ -15,7 +15,7 @@ Manage characters, build worlds, structure plots, and write chapters as structur
 
 ---
 
-> Built on the open **Agent Skills** standard. Install as a **Codex** or **Claude Code** plugin, or copy the `skills/` folders into any agent that supports `SKILL.md`.
+> Built on the open **Agent Skills** standard. Install it as a **Codex** or **Claude Code** plugin, or copy the `skills/` folders into any agent that supports `SKILL.md`.
 
 ## 🚀 Quick Start
 
@@ -29,11 +29,11 @@ codex plugin add story-skills@story-skills
 /plugin install story-skills@story-skills
 ```
 
-Then just say **"Start a new story"** and the agent takes it from there.
+Then ask **"Start a new story"** to scaffold the project.
 
 ## ✍️ Highly Recommended: Better Writing
 
-For stronger chapter prose, revision passes, and less generic AI-written text, we highly recommend installing [forjd/better-writing](https://github.com/forjd/better-writing) alongside Story Skills. It adds context-aware prose editing, voice calibration, AI-writing tell checks, and final pre-flight review.
+For stronger chapter drafts and revision passes, install [forjd/better-writing](https://github.com/forjd/better-writing) alongside Story Skills. It adds voice calibration, anti-generic writing checks, and a final prose-quality pass.
 
 ```shell
 npx skills add forjd/better-writing
@@ -45,7 +45,7 @@ Or with Bun:
 bunx skills add forjd/better-writing
 ```
 
-Story Skills works without it, but agents should use `better-writing` when it is available for chapter drafting, revision, and final prose polish.
+Story Skills works without it, but chapter drafting and revision are better when agents can use `better-writing`.
 
 ## 📦 Installation
 
@@ -60,7 +60,7 @@ codex plugin marketplace add danjdewhurst/story-skills
 codex plugin add story-skills@story-skills
 ```
 
-For local skill authoring without plugin install:
+For local skill authoring without a plugin install:
 
 ```shell
 git clone https://github.com/danjdewhurst/story-skills.git
@@ -70,7 +70,7 @@ cp -r story-skills/skills/* ~/.agents/skills/
 cp -r story-skills/skills/* .agents/skills/
 ```
 
-Codex detects repo and user skills automatically, but the plugin install is recommended for this bundle.
+Codex detects repo and user skills automatically. The plugin install is still the recommended path for this bundle.
 
 </details>
 
@@ -103,7 +103,7 @@ cp -r story-skills/skills/* .agents/skills/
 cp -r story-skills/skills/* ~/.copilot/skills/
 ```
 
-Skills auto-activate when your request matches a skill's description or can be invoked manually.
+Skills can activate when your request matches a skill description, or you can invoke them manually.
 
 </details>
 
@@ -135,7 +135,7 @@ cp -r story-skills/skills/* .windsurf/skills/
 cp -r story-skills/skills/* ~/.codeium/windsurf/skills/
 ```
 
-Cascade auto-invokes skills when your request matches a skill's description, or use `@skill-name` to invoke manually.
+Cascade can invoke a matching skill automatically. You can also use `@skill-name` to invoke one directly.
 
 </details>
 
@@ -160,7 +160,7 @@ git clone https://github.com/danjdewhurst/story-skills.git
 gemini skills link story-skills/skills
 ```
 
-Gemini will auto-discover the skills and activate them when your request matches a skill's description.
+Gemini discovers the skills and can activate them when your request matches a skill description.
 
 </details>
 
@@ -186,7 +186,7 @@ OpenCode also searches common skill paths such as `.claude/skills/`, so compatib
 <details>
 <summary><strong>Other platforms</strong></summary>
 
-These skills follow the open [Agent Skills](https://agentskills.io) standard (`SKILL.md` with YAML frontmatter). They work with any compatible agent — just copy the skill folders to your agent's skills directory.
+These skills follow the open [Agent Skills](https://agentskills.io) standard: `SKILL.md` files with YAML frontmatter. For any compatible agent, copy the skill folders into that agent's skills directory.
 
 For non-agent use:
 
@@ -200,13 +200,13 @@ For non-agent use:
 
 | Skill | What it does | Try saying |
 |-------|-------------|------------|
-| **story-init** | Scaffolds a complete story project with folder structure, story bible, and registries | *"Start a new story"* |
-| **character-management** | Creates rich character profiles with relationships, traits, arcs, and family trees | *"Create a character"* |
-| **worldbuilding** | Builds locations and world systems — magic, politics, technology, religion, and more | *"Design a magic system"* |
-| **plot-structure** | Plans story arcs using structures like three-act, hero's journey, save the cat, kishotenketsu | *"Create a plot arc"* |
-| **chapter-writing** | Writes chapters using an outline-first workflow, pulling context from all story files for consistency | *"Write the next chapter"* |
+| **story-init** | Scaffolds the story bible, folders, and registries | *"Start a new story"* |
+| **character-management** | Creates character profiles with relationships, traits, arcs, and family trees | *"Create a character"* |
+| **worldbuilding** | Builds locations and systems: magic, politics, technology, religion, and more | *"Design a magic system"* |
+| **plot-structure** | Plans arcs with structures like three-act, hero's journey, Save the Cat, and kishotenketsu | *"Create a plot arc"* |
+| **chapter-writing** | Drafts chapters through an outline-first workflow that pulls from story context | *"Write the next chapter"* |
 
-For best prose quality, pair **chapter-writing** with [**better-writing**](https://github.com/forjd/better-writing).
+For stronger prose, pair **chapter-writing** with [**better-writing**](https://github.com/forjd/better-writing).
 
 ## 📁 Project Structure
 
@@ -231,7 +231,7 @@ my-story/
 
 ## ⚙️ How It Works
 
-Every story element is a markdown file with YAML frontmatter. Skills cross-reference each other to keep your story consistent:
+Every story element is a markdown file with YAML frontmatter. The skills cross-reference those files so the project stays consistent:
 
 - **`story.md`** is the top-level bible read by all skills
 - Characters, locations, and arcs use **kebab-case identifiers** (e.g., `sera-voss`)
@@ -240,13 +240,13 @@ Every story element is a markdown file with YAML frontmatter. Skills cross-refer
 
 ## 📖 Example
 
-> Explore [`examples/the-last-ember/`](examples/the-last-ember/) — a complete fantasy story with three characters, two locations, a magic system, a plot arc with foreshadowing tracking, and a first chapter with full prose.
+> Explore [`examples/the-last-ember/`](examples/the-last-ember/) for a complete fantasy example: three characters, two locations, a magic system, a plot arc with foreshadowing, and a drafted first chapter.
 
 ## 🚢 Releasing
 
-Codex uses `.codex-plugin/plugin.json` as the Codex plugin version source. Claude Code uses `.claude-plugin/plugin.json` as the Claude plugin version source. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state.
+Codex uses `.codex-plugin/plugin.json` as its plugin version source. Claude Code uses `.claude-plugin/plugin.json`. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state.
 
-Distribution metadata lives in `.claude-plugin/` for Claude Code and `.codex-plugin/` plus `.agents/plugins/marketplace.json` for Codex. The `plugins/story-skills` symlink is intentional: Codex marketplace entries must point at a child plugin directory, so the symlink exposes this repo-root plugin without duplicating the `skills/` files.
+Distribution metadata lives in `.claude-plugin/` for Claude Code and `.codex-plugin/` plus `.agents/plugins/marketplace.json` for Codex. The `plugins/story-skills` symlink is intentional: Codex marketplace entries must point at a child plugin directory, so the symlink exposes the repo-root plugin without duplicating `skills/`.
 
 ## 📄 License
 
