@@ -26,6 +26,20 @@ Initialize a new story project with a structured markdown folder layout. Creates
    - POV style (first-person, third-person-limited, third-person-omniscient)
    - Tense (past, present)
 
+If the Story CLI is available, prefer using it to create the starter project, then inspect and refine the generated files as needed:
+
+```shell
+story init "{Title}" --genre "{genre}" --sub-genre "{sub-genre}" --setting-era "{era}" --pov "{pov-style}" --tense "{tense}" --synopsis "{synopsis}" --theme "{theme-1}" --theme "{theme-2}"
+```
+
+If `story` is not installed, use the bundled maintenance fallback when available, resolving the script path relative to the `story-maintenance` skill:
+
+```shell
+node ../story-maintenance/scripts/story.js init "{Title}"
+```
+
+If neither command is available, create the files manually using the steps below.
+
 2. Create the folder structure at the current working directory:
 
 ```
@@ -182,6 +196,14 @@ story: {story-title-kebab}
    - "Add your first character" (triggers character-management skill)
    - "Start worldbuilding" (triggers worldbuilding skill)
    - "Define your plot structure" (triggers plot-structure skill)
+
+6. When CLI access is available, run a final maintenance check:
+
+```shell
+story validate {story-title-kebab}
+```
+
+If using the bundled fallback, replace `story` with `node ../story-maintenance/scripts/story.js`, resolving the path relative to this skill folder.
 
 ## Conventions
 

@@ -20,6 +20,7 @@ A story project must already exist (created via the story-init skill). Verify by
 3. Recommend a structure based on genre (default to three-act if unclear)
 4. Update `plot/_index.md` frontmatter `structure` field
 5. Populate the story structure section with the beat sheet
+6. When CLI access is available, run `story validate .`
 
 ## Creating an Arc
 
@@ -37,6 +38,7 @@ A story project must already exist (created via the story-init skill). Verify by
 8. Update `plot/_index.md` arcs table
 9. Update theme tracking in `plot/_index.md`
 10. If characters are referenced, verify they exist in `characters/`
+11. When CLI access is available, run `story reindex .`, `story links .`, and `story validate .`
 
 ## Managing Plot Points
 
@@ -46,6 +48,7 @@ Plot points live within arc files in the "Plot Points" table. When adding a plot
 2. Add the plot point to the table with chapter reference (if known)
 3. Add the event to `plot/timeline.md` in chronological order
 4. If the plot point involves foreshadowing, add it to the arc's foreshadowing table
+5. When CLI access is available, run `story validate .`
 
 ## Timeline Management
 
@@ -78,6 +81,10 @@ During chapter writing, flag any `planted` items that haven't been paid off as r
 - Plot points reference chapters
 - Timeline entries link arcs and chapters
 - Theme tracking in `plot/_index.md` maps themes to arcs and chapters
+
+## CLI Maintenance
+
+Use the Story CLI when it is available. If `story` is not installed but the `story-maintenance` skill is present, use `node ../story-maintenance/scripts/story.js` with the same arguments, resolving the path relative to this skill folder. If no CLI is available, perform the registry and backlink checks manually.
 
 ## Reference Files
 

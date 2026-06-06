@@ -28,6 +28,7 @@ A story project must already exist (created via the story-init skill). Verify by
 6. Save to `worldbuilding/locations/{name-kebab}.md`
 7. Update `worldbuilding/_index.md` locations table
 8. If notable characters are listed, verify those character files exist and add this location's kebab-case identifier to each character file's `locations` frontmatter list
+9. When CLI access is available, run `story reindex .`, `story links .`, and `story validate .`
 
 ## Creating a System
 
@@ -39,6 +40,7 @@ A story project must already exist (created via the story-init skill). Verify by
 6. Save to `worldbuilding/systems/{name-kebab}.md`
 7. Update `worldbuilding/_index.md` systems table
 8. Cross-reference with characters who interact with the system (e.g., magic-users for a magic system)
+9. When CLI access is available, run `story reindex .`, `story links .`, and `story validate .`
 
 ## Updating World Elements
 
@@ -46,6 +48,7 @@ A story project must already exist (created via the story-init skill). Verify by
 2. Make the requested changes
 3. If cross-references changed, update the linked files
 4. Update `worldbuilding/_index.md` if name, type, or status changed
+5. When CLI access is available, run `story reindex .`, `story links .`, and `story validate .`
 
 ## Cross-Referencing
 
@@ -54,6 +57,10 @@ A story project must already exist (created via the story-init skill). Verify by
 - Systems reference practitioners via character tags
 - When a location is used in a chapter, the chapter's frontmatter `locations` field links back
 - Keep the `worldbuilding/_index.md` world overview section current as elements are added
+
+## CLI Maintenance
+
+Use the Story CLI when it is available. If `story` is not installed but the `story-maintenance` skill is present, use `node ../story-maintenance/scripts/story.js` with the same arguments, resolving the path relative to this skill folder. If no CLI is available, perform the registry and backlink checks manually.
 
 ## Reference Files
 

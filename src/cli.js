@@ -1,0 +1,164 @@
+import path from "node:path";
+import {
+  computeWordCounts,
+  createStoryProject,
+  exportManuscript,
+  reindexProject,
+  validateLinks,
+  validateProject
+} from "./story.js";
+
+const HELP = `Usage: story <command> [options]
+
+Commands:
+  init <title>       Scaffold a story project
+  validate [path]    Check project structure, frontmatter, and registries
+  reindex [path]     Rebuild registry tables from markdown files
+  wordcount [path]   Count chapter prose words
+  links [path]       Check cross-reference targets and backlinks
+  export [path]      Combine chapters into a manuscript markdown file
+
+Options:
+  --dir <path>              Target directory for init
+  --genre <name>            Story genre for init
+  --sub-genre <name>        Story sub-genre for init
+  --setting-era <name>      Setting era for init
+  --theme <name>            Add a theme for init; repeatable
+  --themes <a,b>            Add comma-separated themes for init
+  --pov <style>             POV style for init
+  --tense <tense>           Narrative tense for init
+  --synopsis <text>         Starter synopsis for init
+  --force                   Allow init to overwrite starter files
+  --write                   Update chapter word-count frontmatter
+  --out <file>              Output path for export
+  -h, --help                Show this help
+`;
+
+export function runCli(argv, io) {
+  const parsed = parseArgs(argv);
+  const cwd = io.cwd ?? process.cwd();
+  const command = parsed.positionals[0];
+
+  try {
+    if (!command || command === "help" || parsed.options.help) {
+      io.stdout.write(HELP);
+      return 0;
+    }
+
+    if (command === "init") {
+      const title = parsed.positionals.slice(1).join(" ");
+      const result = createStoryProject({
+        title,
+        cwd,
+        dir: parsed.options.dir,
+        genre: parsed.options.genre,
+        subGenre: parsed.options["sub-genre"],
+        settingEra: parsed.options["setting-era"],
+        themes: collectThemes(parsed.options),
+        pov: parsed.options.pov,
+        tense: parsed.options.tense,
+        synopsis: parsed.options.synopsis,
+        force: Boolean(parsed.options.force)
+      });
+      io.stdout.write(`Created story project: ${result.root}\n`);
+      return 0;
+    }
+
+    const root = path.resolve(cwd, parsed.positionals[1] ?? ".");
+    if (command === "validate") {
+      return reportResult(io, validateProject(root), "Project is valid");
+    }
+
+    if (command === "links") {
+      return reportResult(io, validateLinks(root), "Links are valid");
+    }
+
+    if (command === "reindex") {
+      const result = reindexProject(root);
+      io.stdout.write(result.changed.length === 0
+        ? "Registries already up to date\n"
+        : `Updated ${result.changed.length} registries\n`);
+      return 0;
+    }
+
+    if (command === "wordcount") {
+      const result = computeWordCounts(root, { write: Boolean(parsed.options.write) });
+      for (const chapter of result.chapters) {
+        io.stdout.write(`${chapter.file}: ${chapter.wordCount}\n`);
+      }
+      io.stdout.write(`Total: ${result.total}\n`);
+      return 0;
+    }
+
+    if (command === "export") {
+      const result = exportManuscript(root, { out: parsed.options.out });
+      io.stdout.write(`Exported ${result.chapters} chapters to ${result.outFile}\n`);
+      return 0;
+    }
+
+    io.stderr.write(`Unknown command: ${command}\n\n${HELP}`);
+    return 1;
+  } catch (error) {
+    io.stderr.write(`${error.message}\n`);
+    return 1;
+  }
+}
+
+export function parseArgs(argv) {
+  const positionals = [];
+  const options = {};
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "-h" || arg === "--help") {
+      options.help = true;
+      continue;
+    }
+
+    if (!arg.startsWith("--")) {
+      positionals.push(arg);
+      continue;
+    }
+
+    const equalIndex = arg.indexOf("=");
+    const key = arg.slice(2, equalIndex === -1 ? undefined : equalIndex);
+    const inlineValue = equalIndex === -1 ? undefined : arg.slice(equalIndex + 1);
+    const nextValue = argv[index + 1];
+    const hasSeparateValue = inlineValue === undefined && nextValue !== undefined && !nextValue.startsWith("-");
+    const value = inlineValue ?? (hasSeparateValue ? nextValue : true);
+
+    if (hasSeparateValue) {
+      index += 1;
+    }
+
+    if (options[key] === undefined) {
+      options[key] = value;
+    } else {
+      options[key] = Array.isArray(options[key]) ? options[key].concat(value) : [options[key], value];
+    }
+  }
+
+  return { positionals, options };
+}
+
+function collectThemes(options) {
+  return []
+    .concat(options.theme ?? [])
+    .concat(options.themes ?? [])
+    .filter((value) => value !== undefined && value !== true);
+}
+
+function reportResult(io, result, successMessage) {
+  const output = result.ok ? io.stdout : io.stderr;
+  output.write(`${successMessage}: ${result.errors.length} errors, ${result.warnings.length} warnings\n`);
+
+  for (const error of result.errors) {
+    io.stderr.write(`error: ${error}\n`);
+  }
+
+  for (const warning of result.warnings) {
+    output.write(`warning: ${warning}\n`);
+  }
+
+  return result.ok ? 0 : 1;
+}

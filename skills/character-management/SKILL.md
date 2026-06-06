@@ -30,6 +30,13 @@ A story project must already exist (created via the story-init skill). Verify by
 6. Save to `characters/{name-kebab}.md`
 7. Update `characters/_index.md` registry table
 8. If relationships reference existing characters, update those character files too
+9. When CLI access is available, run the maintenance pass in the story root:
+
+```shell
+story reindex .
+story links .
+story validate .
+```
 
 ## Updating a Character
 
@@ -38,6 +45,7 @@ A story project must already exist (created via the story-init skill). Verify by
 3. Make the requested changes
 4. If relationships changed, update the other character's file (bidirectional)
 5. Update `characters/_index.md` if role or status changed
+6. When CLI access is available, run `story reindex .`, `story links .`, and `story validate .`
 
 ## Managing Relationships
 
@@ -69,6 +77,10 @@ Indent children under parents. Note marriages/partnerships inline.
 - Character-location backlinks live in the character file's `locations` frontmatter list
 - When a character appears in a plot arc, ensure they're listed in the arc's `characters` frontmatter
 - Character tags should be consistent across the project (e.g., if `magic-user` is used, always use that exact tag)
+
+## CLI Maintenance
+
+Use the Story CLI when it is available. If `story` is not installed but the `story-maintenance` skill is present, use `node ../story-maintenance/scripts/story.js` with the same arguments, resolving the path relative to this skill folder. If no CLI is available, perform the registry and backlink checks manually.
 
 ## Reference Files
 

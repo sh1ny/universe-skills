@@ -10,7 +10,7 @@ characters:
 arcs-advanced:
   - seras-reclamation
 status: draft
-word-count: 1800
+word-count: 997
 ---
 
 # Chapter 1: The Ember Wakes

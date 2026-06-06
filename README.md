@@ -205,8 +205,35 @@ For non-agent use:
 | **worldbuilding** | Builds locations and systems: magic, politics, technology, religion, and more | *"Design a magic system"* |
 | **plot-structure** | Plans arcs with structures like three-act, hero's journey, Save the Cat, and kishotenketsu | *"Create a plot arc"* |
 | **chapter-writing** | Drafts chapters through an outline-first workflow that pulls from story context | *"Write the next chapter"* |
+| **story-maintenance** | Runs deterministic CLI checks for validation, indexing, links, word counts, and export | *"Validate my story project"* |
 
 For stronger prose, pair **chapter-writing** with [**better-writing**](https://github.com/forjd/better-writing).
+
+## 🧰 Companion CLI
+
+The optional `story` CLI handles deterministic project maintenance while the skills handle the creative workflow.
+
+```shell
+bun install
+bun run story --help
+```
+
+The package also exposes a Node-compatible bin, so published installs can run `story` through npm/npx without Bun-specific runtime APIs. For copied-skill installs, `story-maintenance` includes a bundled `scripts/story.js` fallback that agents can run with Node.
+
+| Command | Purpose |
+|---------|---------|
+| `story init "The Last Ember"` | Scaffold a story project with the standard markdown layout |
+| `story validate [path]` | Check required files, YAML frontmatter, registries, and word-count warnings |
+| `story reindex [path]` | Rebuild registry tables from the current markdown files |
+| `story wordcount [path] --write` | Count chapter prose and update chapter frontmatter plus the chapter registry |
+| `story links [path]` | Check character, location, chapter, and arc cross-references/backlinks |
+| `story export [path] --out manuscript.md` | Combine chapters into a single manuscript markdown file |
+
+Development uses Bun for tests and coverage:
+
+```shell
+bun run test:coverage
+```
 
 ## 📁 Project Structure
 

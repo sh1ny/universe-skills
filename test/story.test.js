@@ -1,0 +1,272 @@
+import { describe, expect, test } from "bun:test";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  computeWordCounts,
+  createStoryProject,
+  exportManuscript,
+  reindexProject,
+  scanProject,
+  validateLinks,
+  validateProject
+} from "../src/story.js";
+import { makeTempDir, writeMarkdown } from "./helpers.js";
+
+function addStoryEntities(root) {
+  writeMarkdown(path.join(root, "characters", "sera-voss.md"), `
+name: "Sera Voss"
+role: protagonist
+status: alive
+relationships:
+  - character: kael-voss
+    type: sibling
+locations:
+  - whispering-vale
+`, "# Sera\n");
+  writeMarkdown(path.join(root, "characters", "kael-voss.md"), `
+name: "Kael Voss"
+role: supporting
+status: alive
+relationships:
+  - character: sera-voss
+    type: sibling
+locations:
+  - whispering-vale
+`, "# Kael\n");
+  writeMarkdown(path.join(root, "worldbuilding", "locations", "whispering-vale.md"), `
+name: "Whispering Vale"
+type: wilderness
+region: North
+notable-characters:
+  - sera-voss
+  - kael-voss
+`, "# Vale\n");
+  writeMarkdown(path.join(root, "worldbuilding", "systems", "ember-magic.md"), `
+name: "Ember Magic"
+type: magic
+`, "# Ember\n");
+  writeMarkdown(path.join(root, "plot", "arcs", "reclamation.md"), `
+name: "Reclamation"
+type: main
+status: planned
+characters:
+  - sera-voss
+themes:
+  - redemption
+`, "# Arc\n");
+  writeMarkdown(path.join(root, "chapters", "chapter-01.md"), `
+title: "The Ember Wakes"
+number: 1
+pov: sera-voss
+locations:
+  - whispering-vale
+characters:
+  - sera-voss
+arcs-advanced:
+  - reclamation
+status: draft
+word-count: 0
+`, "# Chapter 1\n\n## Outline\n\n1. Beat\n\n---\n\nSera returned home.");
+}
+
+describe("story project operations", () => {
+  test("creates, scans, reindexes, counts, validates, links, and exports a story project", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({
+      cwd,
+      title: "The Last Ember",
+      genre: "fantasy",
+      subGenre: "epic",
+      settingEra: "medieval",
+      themes: ["redemption", "legacy"],
+      pov: "third-person-limited",
+      tense: "past",
+      synopsis: "Sera returns.",
+      force: false
+    });
+
+    expect(created.storyId).toBe("the-last-ember");
+    expect(fs.existsSync(path.join(created.root, "story.md"))).toBe(true);
+    addStoryEntities(created.root);
+
+    const project = scanProject(created.root);
+    expect(project.characters.map((item) => item.id)).toEqual(["kael-voss", "sera-voss"]);
+    expect(project.chapters[0].wordCount).toBe(3);
+
+    const reindexed = reindexProject(created.root);
+    expect(reindexed.changed.map((file) => path.basename(file))).toContain("_index.md");
+    expect(fs.readFileSync(path.join(created.root, "characters", "_index.md"), "utf8")).toContain("[sera-voss](sera-voss.md)");
+    expect(fs.readFileSync(path.join(created.root, "worldbuilding", "_index.md"), "utf8")).toContain("[whispering-vale](locations/whispering-vale.md)");
+    expect(fs.readFileSync(path.join(created.root, "plot", "_index.md"), "utf8")).toContain("[reclamation](arcs/reclamation.md)");
+
+    const counts = computeWordCounts(created.root, { write: true });
+    expect(counts).toEqual({
+      chapters: [{ number: 1, title: "The Ember Wakes", file: path.join("chapters", "chapter-01.md"), wordCount: 3 }],
+      total: 3
+    });
+    expect(fs.readFileSync(path.join(created.root, "chapters", "chapter-01.md"), "utf8")).toContain("word-count: 3");
+
+    expect(validateProject(created.root).ok).toBe(true);
+    expect(validateLinks(created.root)).toEqual({ ok: true, errors: [], warnings: [] });
+
+    const exported = exportManuscript(created.root, { out: "book.md" });
+    expect(exported.chapters).toBe(1);
+    expect(fs.readFileSync(exported.outFile, "utf8")).toContain("# Chapter 1: The Ember Wakes\n\nSera returned home.");
+  });
+
+  test("supports forced init, default metadata, and unchanged reindex", () => {
+    const cwd = makeTempDir();
+    const first = createStoryProject({ cwd, title: "Quiet Stars", force: false });
+    expect(() => createStoryProject({ cwd, title: "Quiet Stars", force: false })).toThrow("already exists");
+    const second = createStoryProject({ cwd, title: "Quiet Stars", force: true, themes: [] });
+    expect(second.root).toBe(first.root);
+    expect(reindexProject(second.root).changed).toEqual([]);
+  });
+
+  test("reports missing structure, frontmatter fields, registry warnings, word-count warnings, and link errors", () => {
+    const cwd = makeTempDir();
+    expect(validateProject(cwd).errors).toContain("Missing required path: story.md");
+
+    const created = createStoryProject({ cwd, title: "Broken Links", force: false });
+    writeMarkdown(path.join(created.root, "characters", "orphan.md"), `
+name: Orphan
+role: supporting
+status: alive
+relationships:
+  - character: missing-person
+    type: friend
+locations:
+  - missing-place
+`, "# Orphan");
+    writeMarkdown(path.join(created.root, "worldbuilding", "locations", "empty.md"), `
+name: Empty
+type: ruins
+notable-characters:
+  - missing-person
+`, "# Empty");
+    writeMarkdown(path.join(created.root, "plot", "arcs", "bad-arc.md"), `
+name: Bad Arc
+type: main
+status: planned
+characters:
+  - missing-person
+`, "# Arc");
+    writeMarkdown(path.join(created.root, "chapters", "chapter-02.md"), `
+title: "Bad Chapter"
+number: 2
+pov: orphan
+locations:
+  - missing-place
+characters:
+  - missing-person
+arcs-advanced:
+  - missing-arc
+status: draft
+word-count: 10
+`, "## Chapter Text\n\nTwo words.");
+
+    const validation = validateProject(created.root);
+    expect(validation.ok).toBe(true);
+    expect(validation.warnings.some((warning) => warning.includes("registry link"))).toBe(true);
+    expect(validation.warnings.some((warning) => warning.includes("declares 10 words"))).toBe(true);
+
+    const links = validateLinks(created.root);
+    expect(links.ok).toBe(false);
+    expect(links.errors.join("\n")).toContain("missing character missing-person");
+    expect(links.errors.join("\n")).toContain("missing location missing-place");
+    expect(links.errors.join("\n")).toContain("missing arc missing-arc");
+  });
+
+  test("reports missing backlinks and supports missing directories plus filename chapter numbers", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Backlink Gaps", force: false });
+    fs.rmSync(path.join(created.root, "plot", "arcs"), { recursive: true, force: true });
+    writeMarkdown(path.join(created.root, "characters", "sera-voss.md"), `
+name: "Sera Voss"
+role: protagonist
+status: alive
+relationships:
+  - character: kael-voss
+    type: sibling
+locations:
+  - whispering-vale
+`, "# Sera");
+    writeMarkdown(path.join(created.root, "characters", "kael-voss.md"), `
+name: "Kael Voss"
+role: supporting
+status: alive
+locations: []
+`, "# Kael");
+    writeMarkdown(path.join(created.root, "characters", "maren.md"), `
+name: Maren
+role: antagonist
+status: alive
+locations: []
+`, "# Maren");
+    writeMarkdown(path.join(created.root, "worldbuilding", "locations", "whispering-vale.md"), `
+name: "Whispering Vale"
+type: wilderness
+notable-characters:
+  - maren
+`, "# Vale");
+    writeMarkdown(path.join(created.root, "chapters", "chapter-07.md"), `
+title: Seven
+pov: sera-voss
+locations: []
+characters: []
+arcs-advanced: []
+status: draft
+word-count: 0
+`, "## Chapter Text\n\nSeven words here.");
+
+    const project = scanProject(created.root);
+    expect(project.arcs).toEqual([]);
+    expect(project.chapters[0].number).toBe(7);
+
+    const links = validateLinks(created.root);
+    expect(links.errors.join("\n")).toContain("relationship to kael-voss is missing backlink");
+    expect(links.errors.join("\n")).toContain("location whispering-vale is missing notable-character backlink");
+    expect(links.errors.join("\n")).toContain("notable character maren is missing location backlink");
+  });
+
+  test("sorts multiple chapters by number and then filename", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Chapter Order", force: false });
+    writeMarkdown(path.join(created.root, "chapters", "chapter-10.md"), `
+title: Ten
+number: 10
+pov: ""
+locations: []
+characters: []
+arcs-advanced: []
+status: draft
+word-count: 0
+`, "## Chapter Text\n\nTen.");
+    writeMarkdown(path.join(created.root, "chapters", "chapter-02.md"), `
+title: Two
+number: 2
+pov: ""
+locations: []
+characters: []
+arcs-advanced: []
+status: draft
+word-count: 0
+`, "## Chapter Text\n\nTwo.");
+
+    expect(scanProject(created.root).chapters.map((chapter) => chapter.number)).toEqual([2, 10]);
+  });
+
+  test("reports missing required frontmatter fields and empty export", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "No Chapters", force: false });
+    writeMarkdown(path.join(created.root, "characters", "nameless.md"), `
+name: Nameless
+role: supporting
+`, "# Nameless");
+
+    const validation = validateProject(created.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors).toContain(`characters${path.sep}nameless.md is missing frontmatter field status`);
+    expect(() => exportManuscript(created.root)).toThrow("No chapters found to export");
+  });
+});

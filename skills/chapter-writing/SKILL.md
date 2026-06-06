@@ -82,6 +82,13 @@ After the chapter is written:
 3. **Update arc files** - mark advanced plot points with chapter reference
 4. **Update foreshadowing** - mark any items as `planted` or `paid-off` with chapter reference
 5. **Note character changes** - if a character's status changed (injury, revelation, relationship shift), flag for the user to update the character file
+6. **Run CLI maintenance when available:**
+
+```shell
+story wordcount . --write
+story links .
+story validate .
+```
 
 Present a summary of all updates made.
 
@@ -98,6 +105,11 @@ When asked to revise a chapter:
 4. Make targeted edits rather than rewriting from scratch
 5. Update word count in frontmatter
 6. Update chapter status (draft -> revised)
+7. When CLI access is available, run `story wordcount . --write`, `story links .`, and `story validate .`
+
+## CLI Maintenance
+
+Use the Story CLI when it is available. If `story` is not installed but the `story-maintenance` skill is present, use `node ../story-maintenance/scripts/story.js` with the same arguments, resolving the path relative to this skill folder. If no CLI is available, perform the registry, backlink, and word-count checks manually.
 
 ## Reference Files
 
