@@ -73,6 +73,8 @@ With the approved outline, write the full prose:
 
 Save to `chapters/chapter-{NN}.md` with appropriate frontmatter.
 
+Write chapter prose directly into the chapter markdown file. Do not stage prose in project-local build scripts, generator scripts, or bulk writer scripts (for example `build-*.js`) to emit chapters. If a temporary helper is truly unavoidable for mechanical file operations, keep it outside the story project and remove it before finishing.
+
 ### 5. Post-Write Updates
 
 After the chapter is written:

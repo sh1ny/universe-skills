@@ -19,6 +19,8 @@ Prefer the first available command:
 
 If none of these are available, perform the requested maintenance manually using the conventions in `story-init`.
 
+Run the installed or bundled CLI in place. Do not copy `scripts/story.js` into the user's story project, and do not create project-local build scripts, generator scripts, or bulk writer scripts to generate story content. Story projects should remain markdown-first, plus explicitly requested exports such as `manuscript.md`.
+
 ## Commands
 
 Run commands from the story project root, or pass the story path explicitly.

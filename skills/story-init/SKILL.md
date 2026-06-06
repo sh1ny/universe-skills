@@ -215,3 +215,5 @@ These conventions apply across ALL story skills:
 - **`story.md`** is the top-level bible read by all skills for context
 - **Bidirectional cross-links** - when referencing another entity, update both files
 - **Character identifiers** use the kebab-case filename without extension (e.g., `sera-voss`)
+- **Markdown-first artifacts** - create and edit story content directly in the target `.md` files. Do not create project-local build scripts, generator scripts, or bulk writer scripts (for example `build-*.js`) to emit story files.
+- **CLI helpers stay external** - the only JavaScript helper agents should run is the installed or bundled Story CLI (`story`, `bun run story --`, or `story-maintenance/scripts/story.js`) for deterministic maintenance. Do not copy it into the user's story project, and remove any unavoidable scratch helper before finishing.

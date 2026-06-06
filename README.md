@@ -238,6 +238,8 @@ bun run story --help
 
 The package also exposes a Node-compatible bin, so published installs can run `story` through npm/npx without Bun-specific runtime APIs. For copied-skill installs, `story-maintenance` includes a bundled `scripts/story.js` fallback that agents can run with Node.
 
+The CLI is for deterministic maintenance only. Agents should write story content directly to markdown files, not create project-local build or generator scripts to emit the story.
+
 | Command | Purpose |
 |---------|---------|
 | `story init "The Last Ember"` | Scaffold a story project with the standard markdown layout |
@@ -282,6 +284,7 @@ Every story element is a markdown file with YAML frontmatter. The skills cross-r
 - Characters, locations, and arcs use **kebab-case identifiers** (e.g., `sera-voss`)
 - **`_index.md`** files serve as registries for each domain
 - Relationships and references are maintained **bidirectionally**
+- Story content is created directly as markdown; generated build scripts are not part of the project format
 
 ## 📖 Examples
 
