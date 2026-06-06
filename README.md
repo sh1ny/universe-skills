@@ -163,6 +163,7 @@ gemini skills install https://github.com/danjdewhurst/story-skills.git --path sk
 gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/worldbuilding
 gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/plot-structure
 gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/chapter-writing
+gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/revision-continuity
 
 # Or link locally after cloning
 git clone https://github.com/danjdewhurst/story-skills.git
@@ -223,7 +224,8 @@ For non-agent use:
 | **worldbuilding** | Builds locations and systems: magic, politics, technology, religion, and more | *"Design a magic system"* |
 | **plot-structure** | Plans arcs with structures like three-act, hero's journey, Save the Cat, and kishotenketsu | *"Create a plot arc"* |
 | **chapter-writing** | Drafts chapters through an outline-first workflow that pulls from story context | *"Write the next chapter"* |
-| **story-maintenance** | Runs deterministic CLI checks for validation, indexing, links, word counts, and export | *"Validate my story project"* |
+| **revision-continuity** | Revises drafts, audits continuity, and keeps character state, timeline, and arc changes consistent | *"Continuity-check chapter 3"* |
+| **story-maintenance** | Runs deterministic CLI checks for validation, reports, indexing, links, word counts, and export | *"Validate my story project"* |
 
 For stronger prose, pair **chapter-writing** with [**better-writing**](https://github.com/forjd/better-writing).
 
@@ -243,18 +245,21 @@ The CLI is for deterministic maintenance only. Agents should write story content
 | Command | Purpose |
 |---------|---------|
 | `story init "The Last Ember"` | Scaffold a story project with the standard markdown layout |
-| `story validate [path]` | Check required files, YAML frontmatter, registries, and word-count warnings |
+| `story validate [path]` | Check required files, schema version, YAML frontmatter, registries, and word-count warnings |
 | `story reindex [path]` | Rebuild registry tables from the current markdown files |
 | `story wordcount [path] --write` | Count chapter prose and update chapter frontmatter plus the chapter registry |
 | `story links [path]` | Check character, location, chapter, and arc cross-references/backlinks |
+| `story report [path]` | Summarize project inventory, progress, word count, and validation/link status |
 | `story export [path] --out manuscript.md` | Combine chapters into a single manuscript markdown file |
 | `story build [path]` | Build a disposable markdown book artifact at `dist/<story-id>.md` |
 
 Development uses Bun for tests and coverage:
 
 ```shell
-bun test
+bun run test
 bun run test:coverage
+bun run test:examples
+bun run check:metadata
 ```
 
 The copied-skill fallback CLI is generated from the package entrypoint. After changing CLI source, rebuild and check it before release:
@@ -291,6 +296,7 @@ my-story/
 Every story element is a markdown file with YAML frontmatter. The skills cross-reference those files so the project stays consistent:
 
 - **`story.md`** is the top-level bible read by all skills
+- `story.md` includes **`schema-version: 1`** so the CLI can detect incompatible project formats
 - Characters, locations, and arcs use **kebab-case identifiers** (e.g., `sera-voss`)
 - **`_index.md`** files serve as registries for each domain
 - Relationships and references are maintained **bidirectionally**
@@ -304,7 +310,7 @@ Every story element is a markdown file with YAML frontmatter. The skills cross-r
 
 ## 🚢 Releasing
 
-Codex uses `.codex-plugin/plugin.json` as its plugin version source. Claude Code uses `.claude-plugin/plugin.json`. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state.
+Codex uses `.codex-plugin/plugin.json` as its plugin version source. Claude Code uses `.claude-plugin/plugin.json`. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state. Run `bun run check:metadata` before publishing to confirm package and plugin metadata are aligned.
 
 Distribution metadata lives in `.claude-plugin/` for Claude Code and `.codex-plugin/` plus `.agents/plugins/marketplace.json` for Codex. The `plugins/story-skills` symlink is intentional: Codex marketplace entries must point at a child plugin directory, so the symlink exposes the repo-root plugin without duplicating `skills/`.
 

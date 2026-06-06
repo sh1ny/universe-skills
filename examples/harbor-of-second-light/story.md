@@ -1,5 +1,6 @@
 ---
 title: Harbor of Second Light
+schema-version: 1
 genre: science-fiction
 sub-genre: coastal-mystery
 setting-era: near-future

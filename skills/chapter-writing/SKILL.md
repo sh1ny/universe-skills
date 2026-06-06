@@ -98,16 +98,9 @@ Present a summary of all updates made.
 
 Within a chapter, separate scenes with `---`. Each scene should have a clear POV character (even if the same as the previous scene) and location.
 
-## Revision Workflow
+## Revision Handoff
 
-When asked to revise a chapter:
-1. Read the existing chapter
-2. Understand what needs to change
-3. When available, use the `better-writing` skill for the prose-quality pass
-4. Make targeted edits rather than rewriting from scratch
-5. Update word count in frontmatter
-6. Update chapter status (draft -> revised)
-7. When CLI access is available, run `story wordcount . --write`, `story links .`, and `story validate .`
+When asked to revise, line edit, polish, or continuity-check an existing chapter, use the `revision-continuity` skill. This skill owns new drafting and chapter creation; `revision-continuity` owns targeted edits, continuity audits, and post-draft cleanup.
 
 ## CLI Maintenance
 

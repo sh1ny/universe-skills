@@ -25,11 +25,11 @@ bun install
 bun run story -- --help
 bun run build:fallback
 bun run check:fallback
-bun test
+bun run test
 bun run test:coverage
 ```
 
-Use `bun test` for normal verification. Use `bun run build:fallback` after changing CLI behavior in `src/`, then use `bun run check:fallback` to confirm the generated fallback is current. Use `bun run test:coverage` when changes affect CLI behavior, parsing, project scanning, validation, fallback generation, or release readiness.
+Use `bun run test` for normal verification. Use `bun run build:fallback` after changing CLI behavior in `src/`, then use `bun run check:fallback` to confirm the generated fallback is current. Use `bun run test:coverage` when changes affect CLI behavior, parsing, project scanning, validation, fallback generation, or release readiness.
 
 ## Implementation Rules
 

@@ -1,5 +1,6 @@
 ---
 title: "The Last Ember"
+schema-version: 1
 genre: fantasy
 sub-genre: epic
 setting-era: medieval

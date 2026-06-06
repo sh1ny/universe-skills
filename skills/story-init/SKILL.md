@@ -64,6 +64,7 @@ If neither command is available, create the files manually using the steps below
 ```yaml
 ---
 title: "{Title}"
+schema-version: 1
 genre: {genre}
 sub-genre: {sub-genre}
 setting-era: {era}
@@ -211,6 +212,7 @@ These conventions apply across ALL story skills:
 
 - **Kebab-case filenames** for all entity files (e.g., `sera-voss.md`, `ashen-citadel.md`)
 - **YAML frontmatter** on every file for structured metadata
+- **Schema version** - `story.md` frontmatter includes `schema-version: 1`
 - **`_index.md`** files are authoritative registries for each domain
 - **`story.md`** is the top-level bible read by all skills for context
 - **Bidirectional cross-links** - when referencing another entity, update both files

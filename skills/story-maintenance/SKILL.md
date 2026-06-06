@@ -1,13 +1,13 @@
 ---
 name: story-maintenance
-description: This skill should be used when the user asks to validate, reindex, repair registries, check links, count words, export a manuscript, run the story CLI, or perform deterministic maintenance on a Story Skills markdown project.
+description: This skill should be used when the user asks to validate, reindex, repair registries, check links, count words, summarize a story project, export a manuscript, run the story CLI, or perform deterministic maintenance on a Story Skills markdown project.
 ---
 
 # Story Maintenance
 
 ## Overview
 
-Run deterministic maintenance for Story Skills projects. Use the CLI for structure validation, registry rebuilds, word counts, link checks, and manuscript export. The creative skills still own story decisions; this skill handles mechanical consistency.
+Run deterministic maintenance for Story Skills projects. Use the CLI for structure validation, registry rebuilds, word counts, link checks, project reports, and manuscript export. The creative skills still own story decisions; this skill handles mechanical consistency.
 
 ## CLI Access
 
@@ -30,6 +30,7 @@ story validate .
 story reindex .
 story wordcount . --write
 story links .
+story report .
 story export . --out manuscript.md
 story build .
 ```
@@ -40,6 +41,7 @@ Use:
 - `reindex` after adding/removing/renaming characters, locations, systems, arcs, or chapters
 - `wordcount --write` after writing or revising chapters
 - `links` after changing character relationships, notable locations, arc participants, or chapter references
+- `report` when the user asks for project status, inventory, progress, or a quick health summary
 - `export` only when the user asks for a combined manuscript at a specific path
 - `build` when the user asks to build the book artifact; defaults to `dist/<story-id>.md`
 

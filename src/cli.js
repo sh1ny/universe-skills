@@ -4,6 +4,8 @@ import {
   computeWordCounts,
   createStoryProject,
   exportManuscript,
+  formatProjectReport,
+  projectReport,
   reindexProject,
   validateLinks,
   validateProject
@@ -17,6 +19,7 @@ Commands:
   reindex [path]     Rebuild registry tables from markdown files
   wordcount [path]   Count chapter prose words
   links [path]       Check cross-reference targets and backlinks
+  report [path]      Summarize project inventory, progress, and checks
   export [path]      Combine chapters into a manuscript markdown file
   build [path]       Build a disposable book artifact in dist/
 
@@ -74,6 +77,11 @@ export function runCli(argv, io) {
 
     if (command === "links") {
       return reportResult(io, validateLinks(root), "Links are valid");
+    }
+
+    if (command === "report") {
+      io.stdout.write(formatProjectReport(projectReport(root)));
+      return 0;
     }
 
     if (command === "reindex") {

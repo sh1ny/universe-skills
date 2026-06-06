@@ -191,6 +191,7 @@ function stripLeadingH1(markdownBody) {
 }
 
 // src/story.js
+var STORY_SCHEMA_VERSION = 1;
 var REQUIRED_PATHS = [
   "story.md",
   "characters/_index.md",
@@ -202,6 +203,48 @@ var REQUIRED_PATHS = [
   "plot/timeline.md",
   "chapters/_index.md"
 ];
+var INDEX_SCHEMAS = [
+  [path.join("characters", "_index.md"), "character-registry"],
+  [path.join("worldbuilding", "_index.md"), "world-registry"],
+  [path.join("plot", "_index.md"), "plot-registry"],
+  [path.join("plot", "timeline.md"), "timeline"],
+  [path.join("chapters", "_index.md"), "chapter-registry"]
+];
+var STORY_STATUSES = new Set(["planning", "drafting", "in-progress", "revising", "complete", "abandoned"]);
+var STORY_TENSES = new Set(["past", "present", "future", "mixed"]);
+var CHARACTER_ROLES = new Set(["protagonist", "antagonist", "supporting", "minor", "narrator", "deuteragonist"]);
+var CHARACTER_STATUSES = new Set(["alive", "deceased", "unknown", "missing"]);
+var ARC_TYPES = new Set(["main", "subplot", "character", "thematic"]);
+var ARC_STATUSES = new Set(["planned", "in-progress", "resolved"]);
+var CHAPTER_STATUSES = new Set(["outline", "draft", "revised", "final", "complete"]);
+var RELATIONSHIP_INVERSES = new Map([
+  ["parent", "child"],
+  ["child", "parent"],
+  ["grandparent", "grandchild"],
+  ["grandchild", "grandparent"],
+  ["uncle", "nephew"],
+  ["aunt", "niece"],
+  ["nephew", "uncle"],
+  ["niece", "aunt"],
+  ["mentor", "student"],
+  ["student", "mentor"],
+  ["employer", "subordinate"],
+  ["subordinate", "employer"]
+]);
+var SYMMETRIC_RELATIONSHIPS = new Set([
+  "sibling",
+  "spouse",
+  "partner",
+  "friend",
+  "ally",
+  "rival",
+  "enemy",
+  "cousin",
+  "colleague",
+  "foil",
+  "confidant",
+  "love-interest"
+]);
 function createStoryProject(options) {
   const title = String(options.title ?? "").trim();
   if (!title) {
@@ -304,12 +347,13 @@ function validateProject(root) {
     return { ok: false, errors, warnings };
   }
   const project = scanProject(projectRoot);
-  requireFields(project.story.data, ["title", "genre", "status", "pov", "tense"], "story.md", errors);
-  validateEntityFields(project.characters, ["name", "role", "status"], "characters", errors);
-  validateEntityFields(project.locations, ["name", "type"], "locations", errors);
-  validateEntityFields(project.systems, ["name", "type"], "systems", errors);
-  validateEntityFields(project.arcs, ["name", "type", "status"], "arcs", errors);
-  validateEntityFields(project.chapters, ["title", "number", "status"], "chapters", errors);
+  validateStoryFrontmatter(project, errors);
+  validateIndexFrontmatter(project, errors);
+  validateCharacters(project, errors);
+  validateLocations(project, errors);
+  validateSystems(project, errors);
+  validateArcs(project, errors);
+  validateChapters(project, errors);
   const indexChecks = [
     [path.join("characters", "_index.md"), project.characters.map((item) => `](${item.id}.md)`)],
     [path.join("worldbuilding", "_index.md"), project.locations.map((item) => `](locations/${item.id}.md)`).concat(project.systems.map((item) => `](systems/${item.id}.md)`))],
@@ -345,6 +389,12 @@ function validateLinks(root) {
         errors.push(`${relative(project, character.file)} references missing character ${target}`);
       } else if (!characters.get(target).relationships.some((entry) => entry.character === character.id)) {
         errors.push(`${relative(project, character.file)} relationship to ${target} is missing backlink`);
+      } else {
+        const backlink = characters.get(target).relationships.find((entry) => entry.character === character.id);
+        const expectedType = inverseRelationshipType(relationship.type);
+        if (expectedType && backlink.type !== expectedType) {
+          errors.push(`${relative(project, character.file)} relationship ${relationship.type} to ${target} expects backlink type ${expectedType}, got ${backlink.type}`);
+        }
       }
     }
     for (const locationId of character.locations) {
@@ -372,6 +422,9 @@ function validateLinks(root) {
     }
   }
   for (const chapter of project.chapters) {
+    if (chapter.pov && !characters.has(chapter.pov)) {
+      errors.push(`${relative(project, chapter.file)} references missing POV character ${chapter.pov}`);
+    }
     for (const characterId of chapter.characters) {
       if (!characters.has(characterId)) {
         errors.push(`${relative(project, chapter.file)} references missing character ${characterId}`);
@@ -389,6 +442,86 @@ function validateLinks(root) {
     }
   }
   return { ok: errors.length === 0, errors, warnings };
+}
+function projectReport(root) {
+  const project = scanProject(root);
+  const validation = validateProject(project.root);
+  const links = validateLinks(project.root);
+  const totalWords = project.chapters.reduce((sum, chapter) => sum + chapter.wordCount, 0);
+  return {
+    root: project.root,
+    title: project.story.data.title,
+    storyId: project.storyId,
+    schemaVersion: project.story.data["schema-version"],
+    genre: project.story.data.genre,
+    subGenre: project.story.data["sub-genre"],
+    status: project.story.data.status,
+    pov: project.story.data.pov,
+    tense: project.story.data.tense,
+    counts: {
+      characters: project.characters.length,
+      locations: project.locations.length,
+      systems: project.systems.length,
+      arcs: project.arcs.length,
+      chapters: project.chapters.length,
+      words: totalWords
+    },
+    chapters: project.chapters.map((chapter) => ({
+      number: chapter.number,
+      title: chapter.title,
+      status: chapter.status,
+      pov: chapter.pov,
+      wordCount: chapter.wordCount
+    })),
+    arcs: project.arcs.map((arc) => ({
+      name: arc.name,
+      type: arc.type,
+      status: arc.status,
+      characters: arc.characters.length
+    })),
+    validation,
+    links
+  };
+}
+function formatProjectReport(report) {
+  const lines = [
+    `# ${report.title}`,
+    "",
+    `Story ID: ${report.storyId}`,
+    `Schema version: ${report.schemaVersion}`,
+    `Status: ${report.status}`,
+    `Genre: ${[report.genre, report.subGenre].filter(Boolean).join(" / ")}`,
+    `POV/Tense: ${report.pov} / ${report.tense}`,
+    "",
+    "Inventory:",
+    `- Characters: ${report.counts.characters}`,
+    `- Locations: ${report.counts.locations}`,
+    `- Systems: ${report.counts.systems}`,
+    `- Arcs: ${report.counts.arcs}`,
+    `- Chapters: ${report.counts.chapters}`,
+    `- Total words: ${report.counts.words}`,
+    "",
+    "Chapters:"
+  ];
+  if (report.chapters.length === 0) {
+    lines.push("- None");
+  } else {
+    for (const chapter of report.chapters) {
+      lines.push(`- ${chapter.number}. ${chapter.title} (${chapter.status}, ${chapter.wordCount} words, POV: ${chapter.pov || "unspecified"})`);
+    }
+  }
+  lines.push("", "Arcs:");
+  if (report.arcs.length === 0) {
+    lines.push("- None");
+  } else {
+    for (const arc of report.arcs) {
+      lines.push(`- ${arc.name} (${arc.type}, ${arc.status}, ${arc.characters} characters)`);
+    }
+  }
+  lines.push("", "Checks:", `- Validate: ${formatCheck(report.validation)}`, `- Links: ${formatCheck(report.links)}`);
+  return `${lines.join(`
+`)}
+`;
 }
 function reindexProject(root) {
   const project = scanProject(root);
@@ -463,6 +596,7 @@ function buildBook(root, options = {}) {
 function storyBible(options) {
   return `${stringifyFrontmatter({
     title: options.title,
+    "schema-version": STORY_SCHEMA_VERSION,
     genre: options.genre,
     "sub-genre": options.subGenre,
     "setting-era": options.settingEra,
@@ -616,17 +750,214 @@ function normalizeBuildFormat(value) {
   }
   throw new Error(`Unsupported build format: ${value}. Supported formats: markdown`);
 }
+function validateStoryFrontmatter(project, errors) {
+  const data = project.story.data;
+  requireFields(data, ["title", "schema-version", "genre", "status", "themes", "pov", "tense"], "story.md", errors);
+  requireScalar(data, "title", "story.md", errors);
+  requireScalar(data, "genre", "story.md", errors);
+  requireScalar(data, "status", "story.md", errors);
+  requireArray(data, "themes", "story.md", errors);
+  requireScalar(data, "pov", "story.md", errors);
+  requireScalar(data, "tense", "story.md", errors);
+  validateEnum(data, "status", STORY_STATUSES, "story.md", errors);
+  validateEnum(data, "tense", STORY_TENSES, "story.md", errors);
+  if (data["schema-version"] !== undefined && data["schema-version"] !== STORY_SCHEMA_VERSION) {
+    errors.push(`story.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+  }
+}
+function validateIndexFrontmatter(project, errors) {
+  for (const [relativePath, expectedType] of INDEX_SCHEMAS) {
+    const label = relativePath;
+    const data = readMarkdown(path.join(project.root, relativePath)).data;
+    requireFields(data, ["type", "story"], label, errors);
+    requireScalar(data, "type", label, errors);
+    requireScalar(data, "story", label, errors);
+    if (data.type !== undefined && data.type !== expectedType) {
+      errors.push(`${label} type must be ${expectedType}`);
+    }
+    if (data.story !== undefined && data.story !== project.storyId) {
+      errors.push(`${label} story must be ${project.storyId}`);
+    }
+    if (relativePath === path.join("plot", "_index.md")) {
+      requireFields(data, ["structure"], label, errors);
+      requireScalar(data, "structure", label, errors);
+    }
+  }
+}
+function validateCharacters(project, errors) {
+  for (const character of project.characters) {
+    const label = relative(project, character.file);
+    const data = readMarkdown(character.file).data;
+    validateEntityId(character.id, label, errors);
+    requireFields(data, ["name", "role", "status"], label, errors);
+    requireScalar(data, "name", label, errors);
+    requireScalar(data, "role", label, errors);
+    requireScalar(data, "status", label, errors);
+    validateEnum(data, "role", CHARACTER_ROLES, label, errors);
+    validateEnum(data, "status", CHARACTER_STATUSES, label, errors);
+    validateStringArray(data, "aliases", label, errors);
+    validateStringArray(data, "locations", label, errors);
+    validateStringArray(data, "tags", label, errors);
+    validateRelationships(data, label, errors);
+  }
+}
+function validateLocations(project, errors) {
+  for (const location of project.locations) {
+    const label = relative(project, location.file);
+    const data = readMarkdown(location.file).data;
+    validateEntityId(location.id, label, errors);
+    requireFields(data, ["name", "type"], label, errors);
+    requireScalar(data, "name", label, errors);
+    requireScalar(data, "type", label, errors);
+    validateStringArray(data, "notable-characters", label, errors);
+    validateStringArray(data, "tags", label, errors);
+  }
+}
+function validateSystems(project, errors) {
+  for (const system of project.systems) {
+    const label = relative(project, system.file);
+    const data = readMarkdown(system.file).data;
+    validateEntityId(system.id, label, errors);
+    requireFields(data, ["name", "type"], label, errors);
+    requireScalar(data, "name", label, errors);
+    requireScalar(data, "type", label, errors);
+    if (data.prevalence !== undefined) {
+      requireScalar(data, "prevalence", label, errors);
+    }
+  }
+}
+function validateArcs(project, errors) {
+  for (const arc of project.arcs) {
+    const label = relative(project, arc.file);
+    const data = readMarkdown(arc.file).data;
+    validateEntityId(arc.id, label, errors);
+    requireFields(data, ["name", "type", "status"], label, errors);
+    requireScalar(data, "name", label, errors);
+    requireScalar(data, "type", label, errors);
+    requireScalar(data, "status", label, errors);
+    validateEnum(data, "type", ARC_TYPES, label, errors);
+    validateEnum(data, "status", ARC_STATUSES, label, errors);
+    validateStringArray(data, "characters", label, errors);
+    validateStringArray(data, "themes", label, errors);
+    validateStringArray(data, "acts", label, errors);
+  }
+}
+function validateChapters(project, errors) {
+  const seenNumbers = new Map;
+  for (const chapter of project.chapters) {
+    const label = relative(project, chapter.file);
+    const data = readMarkdown(chapter.file).data;
+    const filenameNumber = chapterNumberFromFile(chapter.file);
+    validateEntityId(chapter.id, label, errors);
+    requireFields(data, ["title", "number", "status"], label, errors);
+    requireScalar(data, "title", label, errors);
+    requireScalar(data, "status", label, errors);
+    requireInteger(data, "number", label, errors);
+    validateEnum(data, "status", CHAPTER_STATUSES, label, errors);
+    validateStringArray(data, "locations", label, errors);
+    validateStringArray(data, "characters", label, errors);
+    validateStringArray(data, "arcs-advanced", label, errors);
+    if (data.pov !== undefined) {
+      requireScalar(data, "pov", label, errors);
+    }
+    if (data["word-count"] !== undefined) {
+      requireInteger(data, "word-count", label, errors);
+    }
+    if (filenameNumber === 0) {
+      errors.push(`${label} filename must match chapter-{NN}.md`);
+    } else if (Number.isInteger(data.number) && data.number !== filenameNumber) {
+      errors.push(`${label} number must match filename chapter number ${filenameNumber}`);
+    }
+    if (Number.isInteger(data.number)) {
+      if (data.number <= 0) {
+        errors.push(`${label} number must be greater than 0`);
+      }
+      const existing = seenNumbers.get(data.number);
+      if (existing) {
+        errors.push(`${label} duplicates chapter number ${data.number} from ${existing}`);
+      } else {
+        seenNumbers.set(data.number, label);
+      }
+    }
+  }
+}
+function validateEntityId(id, label, errors) {
+  if (id !== kebabCase(id)) {
+    errors.push(`${label} filename id must be kebab-case`);
+  }
+}
+function requireScalar(data, field, label, errors) {
+  if (data[field] !== undefined && (Array.isArray(data[field]) || typeof data[field] === "object")) {
+    errors.push(`${label} frontmatter field ${field} must be a scalar`);
+  }
+}
+function requireArray(data, field, label, errors) {
+  if (data[field] !== undefined && !Array.isArray(data[field])) {
+    errors.push(`${label} frontmatter field ${field} must be a list`);
+  }
+}
+function requireInteger(data, field, label, errors) {
+  if (data[field] !== undefined && !Number.isInteger(data[field])) {
+    errors.push(`${label} frontmatter field ${field} must be an integer`);
+  }
+}
+function validateStringArray(data, field, label, errors) {
+  if (data[field] === undefined) {
+    return;
+  }
+  if (!Array.isArray(data[field])) {
+    errors.push(`${label} frontmatter field ${field} must be a list`);
+    return;
+  }
+  for (const item of data[field]) {
+    if (typeof item !== "string" || item.trim() === "") {
+      errors.push(`${label} frontmatter field ${field} must contain only non-empty strings`);
+    }
+  }
+}
+function validateRelationships(data, label, errors) {
+  if (data.relationships === undefined) {
+    return;
+  }
+  if (!Array.isArray(data.relationships)) {
+    errors.push(`${label} frontmatter field relationships must be a list`);
+    return;
+  }
+  for (const relationship of data.relationships) {
+    if (!relationship || typeof relationship !== "object" || Array.isArray(relationship)) {
+      errors.push(`${label} frontmatter field relationships must contain objects`);
+      continue;
+    }
+    if (typeof relationship.character !== "string" || relationship.character.trim() === "") {
+      errors.push(`${label} relationship is missing character`);
+    } else if (relationship.character !== kebabCase(relationship.character)) {
+      errors.push(`${label} relationship character ${relationship.character} must be kebab-case`);
+    }
+    if (typeof relationship.type !== "string" || relationship.type.trim() === "") {
+      errors.push(`${label} relationship to ${relationship.character ?? "unknown"} is missing type`);
+    }
+  }
+}
+function validateEnum(data, field, allowed, label, errors) {
+  if (data[field] !== undefined && typeof data[field] === "string" && !allowed.has(data[field])) {
+    errors.push(`${label} frontmatter field ${field} has unsupported value ${data[field]}`);
+  }
+}
+function inverseRelationshipType(type) {
+  if (RELATIONSHIP_INVERSES.has(type)) {
+    return RELATIONSHIP_INVERSES.get(type);
+  }
+  return SYMMETRIC_RELATIONSHIPS.has(type) ? type : "";
+}
+function formatCheck(result) {
+  const status = result.ok ? "ok" : "failed";
+  return `${status} (${result.errors.length} errors, ${result.warnings.length} warnings)`;
+}
 function requireFields(data, fields, label, errors) {
   for (const field of fields) {
     if (data[field] === undefined || data[field] === "") {
       errors.push(`${label} is missing frontmatter field ${field}`);
     }
-  }
-}
-function validateEntityFields(entities, fields, label, errors) {
-  for (const entity of entities) {
-    const data = parseFrontmatter(fs.readFileSync(entity.file, "utf8"), entity.file).data;
-    requireFields(data, fields, path.join(label, path.basename(entity.file)), errors);
   }
 }
 function chapterNumberFromFile(file) {
@@ -646,6 +977,7 @@ Commands:
   reindex [path]     Rebuild registry tables from markdown files
   wordcount [path]   Count chapter prose words
   links [path]       Check cross-reference targets and backlinks
+  report [path]      Summarize project inventory, progress, and checks
   export [path]      Combine chapters into a manuscript markdown file
   build [path]       Build a disposable book artifact in dist/
 
@@ -699,6 +1031,10 @@ function runCli(argv, io) {
     }
     if (command === "links") {
       return reportResult(io, validateLinks(root), "Links are valid");
+    }
+    if (command === "report") {
+      io.stdout.write(formatProjectReport(projectReport(root)));
+      return 0;
     }
     if (command === "reindex") {
       const result = reindexProject(root);
