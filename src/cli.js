@@ -1,5 +1,6 @@
 import path from "node:path";
 import {
+  buildBook,
   computeWordCounts,
   createStoryProject,
   exportManuscript,
@@ -17,6 +18,7 @@ Commands:
   wordcount [path]   Count chapter prose words
   links [path]       Check cross-reference targets and backlinks
   export [path]      Combine chapters into a manuscript markdown file
+  build [path]       Build a disposable book artifact in dist/
 
 Options:
   --dir <path>              Target directory for init
@@ -30,7 +32,8 @@ Options:
   --synopsis <text>         Starter synopsis for init
   --force                   Allow init to overwrite starter files
   --write                   Update chapter word-count frontmatter
-  --out <file>              Output path for export
+  --out <file>              Output path for export/build
+  --format <name>           Output format for build (markdown only)
   -h, --help                Show this help
 `;
 
@@ -93,6 +96,15 @@ export function runCli(argv, io) {
     if (command === "export") {
       const result = exportManuscript(root, { out: parsed.options.out });
       io.stdout.write(`Exported ${result.chapters} chapters to ${result.outFile}\n`);
+      return 0;
+    }
+
+    if (command === "build") {
+      const result = buildBook(root, {
+        out: parsed.options.out,
+        format: parsed.options.format
+      });
+      io.stdout.write(`Built ${result.chapters} chapters to ${result.outFile}\n`);
       return 0;
     }
 

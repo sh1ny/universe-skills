@@ -248,6 +248,7 @@ The CLI is for deterministic maintenance only. Agents should write story content
 | `story wordcount [path] --write` | Count chapter prose and update chapter frontmatter plus the chapter registry |
 | `story links [path]` | Check character, location, chapter, and arc cross-references/backlinks |
 | `story export [path] --out manuscript.md` | Combine chapters into a single manuscript markdown file |
+| `story build [path]` | Build a disposable markdown book artifact at `dist/<story-id>.md` |
 
 Development uses Bun for tests and coverage:
 

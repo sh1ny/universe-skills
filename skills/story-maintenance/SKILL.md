@@ -31,6 +31,7 @@ story reindex .
 story wordcount . --write
 story links .
 story export . --out manuscript.md
+story build .
 ```
 
 Use:
@@ -39,7 +40,8 @@ Use:
 - `reindex` after adding/removing/renaming characters, locations, systems, arcs, or chapters
 - `wordcount --write` after writing or revising chapters
 - `links` after changing character relationships, notable locations, arc participants, or chapter references
-- `export` only when the user asks for a combined manuscript
+- `export` only when the user asks for a combined manuscript at a specific path
+- `build` when the user asks to build the book artifact; defaults to `dist/<story-id>.md`
 
 ## Failure Handling
 

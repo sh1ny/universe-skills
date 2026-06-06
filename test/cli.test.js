@@ -75,6 +75,9 @@ describe("cli", () => {
     expect(invoke(cwd, ["validate", root]).out).toContain("Project is valid");
     expect(invoke(cwd, ["links", root]).out).toContain("Links are valid");
     expect(invoke(cwd, ["export", root, "--out", "out.md"]).out).toContain("Exported 1 chapters");
+    const build = invoke(cwd, ["build", root]);
+    expect(build.out).toContain("Built 1 chapters");
+    expect(fs.existsSync(path.join(root, "dist", "cli-story.md"))).toBe(true);
   });
 
   test("reports command failures", () => {
@@ -103,6 +106,10 @@ word-count: 0
     const links = invoke(cwd, ["links", path.join(cwd, "broken")]);
     expect(links.code).toBe(1);
     expect(links.err).toContain("references missing location missing-place");
+
+    const build = invoke(cwd, ["build", path.join(cwd, "broken"), "--format", "epub"]);
+    expect(build.code).toBe(1);
+    expect(build.err).toContain("Unsupported build format: epub");
   });
 
   test("prints validation warnings on successful validation", () => {
@@ -135,5 +142,6 @@ word-count: 9
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Usage: story");
     expect(result.stdout).toContain("wordcount");
+    expect(result.stdout).toContain("build");
   });
 });
