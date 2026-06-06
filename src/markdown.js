@@ -35,7 +35,7 @@ export function chapterProse(markdownBody) {
 
   const outlineMatch = /^## Outline\s*$/im.exec(markdownBody);
   if (!outlineMatch) {
-    return markdownBody;
+    return stripLeadingH1(markdownBody);
   }
 
   const afterOutline = markdownBody.slice(outlineMatch.index + outlineMatch[0].length);
@@ -59,4 +59,9 @@ export function extractSection(markdown, heading) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function stripLeadingH1(markdownBody) {
+  const match = /^(?:[ \t]*\r?\n)*[ \t]{0,3}#(?!#)[ \t]+[^\r\n]*(?:\r?\n|$)/.exec(markdownBody);
+  return match ? markdownBody.slice(match[0].length) : markdownBody;
 }

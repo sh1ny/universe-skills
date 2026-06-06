@@ -8,11 +8,12 @@ describe("markdown utilities", () => {
     expect(wordCount("# Title\n\nSera's [lost heir](x.md) `code` **returns**.")).toBe(3);
   });
 
-  test("extracts chapter prose from template and outline formats", () => {
+  test("extracts chapter prose from template, outline, and natural formats", () => {
     expect(chapterProse("# Chapter\n\n## Chapter Text\n\nActual prose.").trim()).toBe("Actual prose.");
     expect(chapterProse("# Chapter\n\n## Outline\n\n1. Beat\n\n---\n\nActual prose.").trim()).toBe("Actual prose.");
-    expect(chapterProse("# Chapter\n\nNo outline.").trim()).toBe("# Chapter\n\nNo outline.");
     expect(chapterProse("# Chapter\n\n## Outline\n\n1. Beat").trim()).toBe("1. Beat");
+    expect(chapterProse("# Chapter\n\nNo outline.").trim()).toBe("No outline.");
+    expect(chapterProse("No leading heading.").trim()).toBe("No leading heading.");
   });
 
   test("extracts named sections", () => {
