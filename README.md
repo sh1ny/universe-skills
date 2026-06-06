@@ -289,6 +289,7 @@ Every story element is a markdown file with YAML frontmatter. The skills cross-r
 
 ## 📖 Examples
 
+- Read [**The Cormorant Tide**](https://github.com/danjdewhurst/the-cormorant-tide), a full story project generated with Story Skills.
 - Explore [`examples/the-last-ember/`](examples/the-last-ember/) for a complete fantasy example: three characters, two locations, a magic system, a plot arc with foreshadowing, and a drafted first chapter.
 - Explore [`examples/harbor-of-second-light/`](examples/harbor-of-second-light/) for a near-future coastal mystery example with memory technology, a posthumous witness arc, and a drafted first chapter.
 
