@@ -253,7 +253,16 @@ The CLI is for deterministic maintenance only. Agents should write story content
 Development uses Bun for tests and coverage:
 
 ```shell
+bun test
 bun run test:coverage
+```
+
+The copied-skill fallback CLI is generated from the package entrypoint. After changing CLI source, rebuild and check it before release:
+
+```shell
+bun run build:fallback
+bun run check:fallback
+node skills/story-maintenance/scripts/story.js --help
 ```
 
 ## 📁 Project Structure
