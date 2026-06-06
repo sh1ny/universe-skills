@@ -15,7 +15,7 @@ Story Skills gives agents a shared project format for fiction: a story bible, ch
 
 ---
 
-> Built on the open **Agent Skills** standard. Install it as a **Codex** or **Claude Code** plugin, or copy the `skills/` folders into any agent that supports `SKILL.md`.
+> Built on the open **Agent Skills** standard. Install it as a **Codex** or **Claude Code** plugin, with the Agent Skills CLI, or copy the `skills/` folders into any agent that supports `SKILL.md`.
 
 ## 🚀 Quick Start
 
@@ -27,6 +27,15 @@ codex plugin add story-skills@story-skills
 # Claude Code plugin
 /plugin marketplace add danjdewhurst/story-skills
 /plugin install story-skills@story-skills
+```
+
+For compatible `SKILL.md` agents, you can also install the bundle with the Agent Skills CLI:
+
+```shell
+npx skills add danjdewhurst/story-skills
+
+# Or with Bun
+bunx skills add danjdewhurst/story-skills
 ```
 
 Then ask **"Start a new story"** to scaffold the project.
@@ -186,7 +195,16 @@ OpenCode also searches common skill paths such as `.claude/skills/`, so compatib
 <details>
 <summary><strong>Other platforms</strong></summary>
 
-These skills follow the open [Agent Skills](https://agentskills.io) standard: `SKILL.md` files with YAML frontmatter. For any compatible agent, copy the skill folders into that agent's skills directory.
+These skills follow the open [Agent Skills](https://agentskills.io) standard: `SKILL.md` files with YAML frontmatter. If your agent supports the Agent Skills CLI, install the bundle directly:
+
+```shell
+npx skills add danjdewhurst/story-skills
+
+# Or with Bun
+bunx skills add danjdewhurst/story-skills
+```
+
+Use `--skill <name>` to install only specific skills, or `--agent <name>` to target a supported agent. You can also copy the skill folders into any compatible agent's skills directory.
 
 For non-agent use:
 
