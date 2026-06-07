@@ -5,10 +5,16 @@ import {
   formatProjectReport,
   buildBook,
   computeWordCounts,
+  createEntity,
   createStoryProject,
   exportManuscript,
+  formatActionReport,
+  migrateProject,
   projectReport,
+  projectActions,
   reindexProject,
+  removeEntity,
+  renameEntity,
   scanProject,
   STORY_SCHEMA_VERSION,
   validateLinks,
@@ -71,6 +77,19 @@ arcs-advanced:
 status: draft
 word-count: 0
 `, "# Chapter 1\n\n## Outline\n\n1. Beat\n\n---\n\nSera returned home.");
+  writeMarkdown(path.join(root, "scenes", "chapter-01-scene-01.md"), `
+title: "Sera Returns"
+chapter: chapter-01
+scene: 1
+pov: sera-voss
+location: whispering-vale
+characters:
+  - sera-voss
+arcs-advanced:
+  - reclamation
+status: draft
+state-changes: []
+`, "# Sera Returns\n");
 }
 
 describe("story project operations", () => {
@@ -96,6 +115,7 @@ describe("story project operations", () => {
 
     const project = scanProject(created.root);
     expect(project.characters.map((item) => item.id)).toEqual(["kael-voss", "sera-voss"]);
+    expect(project.scenes.map((item) => item.id)).toEqual(["chapter-01-scene-01"]);
     expect(project.chapters[0].wordCount).toBe(3);
 
     const reindexed = reindexProject(created.root);
@@ -103,6 +123,7 @@ describe("story project operations", () => {
     expect(fs.readFileSync(path.join(created.root, "characters", "_index.md"), "utf8")).toContain("[sera-voss](sera-voss.md)");
     expect(fs.readFileSync(path.join(created.root, "worldbuilding", "_index.md"), "utf8")).toContain("[whispering-vale](locations/whispering-vale.md)");
     expect(fs.readFileSync(path.join(created.root, "plot", "_index.md"), "utf8")).toContain("[reclamation](arcs/reclamation.md)");
+    expect(fs.readFileSync(path.join(created.root, "scenes", "_index.md"), "utf8")).toContain("[chapter-01-scene-01](chapter-01-scene-01.md)");
 
     const counts = computeWordCounts(created.root, { write: true });
     expect(counts).toEqual({
@@ -138,8 +159,14 @@ describe("story project operations", () => {
       characters: 2,
       locations: 1,
       systems: 1,
+      factions: 0,
+      artifacts: 0,
       arcs: 1,
       chapters: 1,
+      scenes: 1,
+      questions: 0,
+      promises: 0,
+      glossaryTerms: 0,
       words: 3
     });
     expect(report.validation.ok).toBe(true);
@@ -147,7 +174,7 @@ describe("story project operations", () => {
 
     const formatted = formatProjectReport(report);
     expect(formatted).toContain("# Reported Story");
-    expect(formatted).toContain("Schema version: 1");
+    expect(formatted).toContain(`Schema version: ${STORY_SCHEMA_VERSION}`);
     expect(formatted).toContain("- 1. The Ember Wakes (draft, 3 words, POV: sera-voss)");
     expect(formatted).toContain("- Validate: ok (0 errors, 0 warnings)");
 
@@ -346,6 +373,7 @@ role: supporting
       path.join(created.root, "story.md"),
       fs.readFileSync(path.join(created.root, "story.md"), "utf8")
         .replace("schema-version: 1", "schema-version: 99")
+        .replace("schema-version: 2", "schema-version: 99")
         .replace("genre: fiction", "genre:\n  - fiction")
         .replace("themes:\n  - change", "themes: none")
         .replace("status: planning", "status: unknown-stage"),
@@ -437,7 +465,7 @@ word-count: 1
 
     const validation = validateProject(created.root);
     expect(validation.ok).toBe(false);
-    expect(validation.errors.join("\n")).toContain("story.md schema-version must be 1");
+    expect(validation.errors.join("\n")).toContain(`story.md schema-version must be ${STORY_SCHEMA_VERSION}`);
     expect(validation.errors.join("\n")).toContain("story.md frontmatter field genre must be a scalar");
     expect(validation.errors.join("\n")).toContain("story.md frontmatter field themes must be a list");
     expect(validation.errors.join("\n")).toContain("story.md frontmatter field status has unsupported value unknown-stage");
@@ -466,7 +494,216 @@ word-count: 1
     expect(links.errors.join("\n")).toContain("relationship parent to child-one expects backlink type child, got parent");
   });
 
-  test("rejects unsupported build formats", () => {
+  test("creates, renames, removes, migrates, and recommends next actions", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Helper Story", force: false });
+    const character = createEntity(created.root, { kind: "character", name: "Mira Sol", role: "protagonist" });
+    const location = createEntity(created.root, { kind: "location", name: "Glass Harbor", type: "city", character: "mira-sol" });
+    const system = createEntity(created.root, { kind: "system", name: "Tide Magic", type: "magic" });
+    const faction = createEntity(created.root, { kind: "faction", name: "Harbor Guild", type: "guild", member: "mira-sol", location: "glass-harbor" });
+    const artifact = createEntity(created.root, { kind: "artifact", name: "Tide Key", owner: "harbor-guild", location: "glass-harbor" });
+    const arc = createEntity(created.root, { kind: "arc", name: "Find The Tide Key", type: "main", character: "mira-sol" });
+    const chapter = createEntity(created.root, { kind: "chapter", name: "Arrival", number: 1, pov: "mira-sol", location: "glass-harbor", character: "mira-sol", arc: "find-the-tide-key" });
+    const scene = createEntity(created.root, { kind: "scene", name: "At The Pier", chapter: "chapter-01", scene: 1, pov: "mira-sol", location: "glass-harbor", character: "mira-sol", arc: "find-the-tide-key" });
+    const nextScene = createEntity(created.root, { kind: "scene", name: "Second Beat", chapter: "chapter-01" });
+    const question = createEntity(created.root, { kind: "question", name: "Who hid the key?", introduced: "chapter-01", character: "mira-sol" });
+    const promise = createEntity(created.root, { kind: "promise", name: "The key opens the reef vault", planted: "chapter-01", arc: "find-the-tide-key", character: "mira-sol" });
+    const term = createEntity(created.root, { kind: "term", name: "Reef Vault", category: "place", alias: "vault" });
+
+    expect(character.id).toBe("mira-sol");
+    expect(location.id).toBe("glass-harbor");
+    expect(system.id).toBe("tide-magic");
+    expect(faction.id).toBe("harbor-guild");
+    expect(artifact.id).toBe("tide-key");
+    expect(arc.id).toBe("find-the-tide-key");
+    expect(chapter.id).toBe("chapter-01");
+    expect(scene.id).toBe("chapter-01-scene-01");
+    expect(nextScene.id).toBe("chapter-01-scene-02");
+    expect(question.id).toBe("who-hid-the-key");
+    expect(promise.id).toBe("the-key-opens-the-reef-vault");
+    expect(term.id).toBe("reef-vault");
+    const activeActions = formatActionReport(projectActions(created.root));
+    expect(activeActions).toContain("Track open questions");
+    expect(activeActions).toContain("Review promises and payoffs");
+
+    const renamed = renameEntity(created.root, { kind: "character", id: "mira-sol", name: "Mira Vale" });
+    expect(renamed.id).toBe("mira-vale");
+    expect(fs.readFileSync(path.join(created.root, "chapters", "chapter-01.md"), "utf8")).toContain("mira-vale");
+
+    const removed = removeEntity(created.root, { kind: "promise", id: "the-key-opens-the-reef-vault" });
+    expect(removed.id).toBe("the-key-opens-the-reef-vault");
+    expect(fs.existsSync(path.join(created.root, "continuity", "promises", "the-key-opens-the-reef-vault.md"))).toBe(false);
+
+    const actions = projectActions(created.root);
+    expect(formatActionReport(actions)).toContain("Draft chapter 2");
+    expect(formatActionReport({
+      title: "Empty",
+      validation: { ok: true, errors: [], warnings: [] },
+      links: { ok: true, errors: [], warnings: [] },
+      actions: []
+    })).toContain("No actions found");
+
+    fs.rmSync(path.join(created.root, "glossary"), { recursive: true, force: true });
+    fs.writeFileSync(
+      path.join(created.root, "story.md"),
+      fs.readFileSync(path.join(created.root, "story.md"), "utf8").replace("schema-version: 2", "schema-version: 1"),
+      "utf8"
+    );
+    const migrated = migrateProject(created.root);
+    expect(migrated.changed.length).toBeGreaterThan(0);
+    expect(scanProject(created.root).story.data["schema-version"]).toBe(STORY_SCHEMA_VERSION);
+  });
+
+  test("covers helper errors, fallback branches, and malformed continuity state", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Coverage Branches", force: false });
+    expect(() => createEntity(created.root, { kind: "character", name: "" })).toThrow("name is required");
+    expect(() => createEntity(created.root, { kind: "beast", name: "Wolf" })).toThrow("Unsupported entity kind");
+    createEntity(created.root, { kind: "glossary", name: "Moon Gate" });
+    createEntity(created.root, { kind: "character", name: "Branch Person", location: "missing-location" });
+    createEntity(created.root, { kind: "location", name: "Branch Place", character: "missing-person" });
+    expect(() => createEntity(created.root, { kind: "location", name: "Branch Place" })).toThrow("already exists");
+    expect(() => renameEntity(created.root, { kind: "character", id: "", name: "Nope" })).toThrow("rename requires");
+    expect(() => renameEntity(created.root, { kind: "character", id: "missing-person", name: "Nope" })).toThrow("does not exist");
+    createEntity(created.root, { kind: "character", name: "Other Person" });
+    expect(() => renameEntity(created.root, { kind: "character", id: "branch-person", name: "Other Person" })).toThrow("already exists");
+    expect(() => removeEntity(created.root, { kind: "character", id: "" })).toThrow("remove requires");
+    expect(() => removeEntity(created.root, { kind: "character", id: "missing-person" })).toThrow("does not exist");
+    expect(() => buildBook(created.root, { format: "epub" })).toThrow("No chapters found to export");
+    writeMarkdown(path.join(created.root, "chapters", "chapter-01.md"), `
+title: Stale
+number: 1
+pov: ""
+locations: []
+characters: []
+arcs-advanced: []
+status: draft
+word-count: 99
+`, "## Chapter Text\n\nOne.");
+    writeMarkdown(path.join(created.root, "scenes", "chapter-01-scene-01.md"), `
+title: Optional State
+chapter: chapter-01
+scene: 1
+status: draft
+`, "# Optional State");
+    expect(createEntity(created.root, { kind: "chapter", name: "Auto Numbered" }).id).toBe("chapter-02");
+    expect(formatActionReport(projectActions(created.root))).toContain("Refresh word counts");
+
+    fs.writeFileSync(
+      path.join(created.root, "continuity", "state.md"),
+      fs.readFileSync(path.join(created.root, "continuity", "state.md"), "utf8")
+        .replace("type: continuity-state", "type: wrong-state")
+        .replace("story: coverage-branches", "story: wrong-story")
+        .replace("character-state: []", "character-state: none"),
+      "utf8"
+    );
+    writeMarkdown(path.join(created.root, "scenes", "bad-state.md"), `
+title: Bad State
+chapter: chapter-01
+scene: 1
+status: draft
+state-changes: none
+`, "# Bad State");
+
+    const validation = validateProject(created.root);
+    expect(validation.errors.join("\n")).toContain("continuity/state.md type must be continuity-state");
+    expect(validation.errors.join("\n")).toContain("continuity/state.md story must be coverage-branches");
+    expect(validation.errors.join("\n")).toContain("continuity/state.md frontmatter field character-state must be a list");
+    expect(validation.errors.join("\n")).toContain("scenes/bad-state.md frontmatter field state-changes must be a list");
+
+    const actions = formatActionReport(projectActions(created.root));
+    expect(actions).toContain("Fix validation errors");
+    expect(actions).toContain("Fix broken references");
+  });
+
+  test("validates v2 entity frontmatter and reference contracts", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "V2 Broken", force: false });
+    writeMarkdown(path.join(created.root, "worldbuilding", "factions", "bad-faction.md"), `
+name: Bad Faction
+type: guild
+status: active
+members:
+  - missing-person
+locations:
+  - missing-place
+tags: []
+`, "# Bad Faction");
+    writeMarkdown(path.join(created.root, "worldbuilding", "artifacts", "bad-artifact.md"), `
+name: Bad Artifact
+type: relic
+status: active
+owner: missing-owner
+location: missing-place
+tags: []
+`, "# Bad Artifact");
+    writeMarkdown(path.join(created.root, "chapters", "chapter-01.md"), `
+title: One
+number: 1
+pov: ""
+locations: []
+characters: []
+arcs-advanced: []
+status: draft
+word-count: 1
+`, "## Chapter Text\n\nOne.");
+    writeMarkdown(path.join(created.root, "scenes", "bad-scene.md"), `
+title: Bad Scene
+chapter: missing-chapter
+scene: 0
+pov: missing-person
+location: missing-place
+characters:
+  - missing-person
+arcs-advanced:
+  - missing-arc
+status: invalid
+state-changes:
+  - not-object
+`, "# Bad Scene");
+    writeMarkdown(path.join(created.root, "continuity", "questions", "bad-question.md"), `
+title: Bad Question
+status: invalid
+introduced: missing-chapter
+resolved: missing-chapter
+characters:
+  - missing-person
+`, "# Bad Question");
+    writeMarkdown(path.join(created.root, "continuity", "promises", "bad-promise.md"), `
+title: Bad Promise
+status: invalid
+planted: missing-chapter
+payoff: missing-chapter
+arcs:
+  - missing-arc
+characters:
+  - missing-person
+`, "# Bad Promise");
+    writeMarkdown(path.join(created.root, "glossary", "terms", "bad-term.md"), `
+term: Bad Term
+category: invalid
+aliases:
+  - ""
+`, "# Bad Term");
+
+    const validation = validateProject(created.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.join("\n")).toContain("scenes/bad-scene.md frontmatter field status has unsupported value invalid");
+    expect(validation.errors.join("\n")).toContain("scenes/bad-scene.md scene must be greater than 0");
+    expect(validation.errors.join("\n")).toContain("continuity/questions/bad-question.md frontmatter field status has unsupported value invalid");
+    expect(validation.errors.join("\n")).toContain("continuity/promises/bad-promise.md frontmatter field status has unsupported value invalid");
+    expect(validation.errors.join("\n")).toContain("glossary/terms/bad-term.md frontmatter field category has unsupported value invalid");
+
+    const links = validateLinks(created.root);
+    expect(links.ok).toBe(false);
+    expect(links.errors.join("\n")).toContain("bad-faction.md references missing member missing-person");
+    expect(links.errors.join("\n")).toContain("bad-artifact.md references missing owner missing-owner");
+    expect(links.errors.join("\n")).toContain("bad-scene.md references missing chapter missing-chapter");
+    expect(links.errors.join("\n")).toContain("bad-question.md references missing character missing-person");
+    expect(links.errors.join("\n")).toContain("bad-promise.md references missing arc missing-arc");
+  });
+
+  test("builds epub and docx formats and rejects unknown formats", () => {
     const cwd = makeTempDir();
     const created = createStoryProject({ cwd, title: "Plain Build", force: false });
     writeMarkdown(path.join(created.root, "chapters", "chapter-01.md"), `
@@ -480,6 +717,20 @@ status: draft
 word-count: 0
 `, "## Chapter Text\n\nOne.");
 
-    expect(() => buildBook(created.root, { format: "epub" })).toThrow("Unsupported build format: epub");
+    const epub = buildBook(created.root, { format: "epub" });
+    const docx = buildBook(created.root, { format: "docx" });
+    expect(epub).toEqual({
+      outFile: path.join(created.root, "dist", "plain-build.epub"),
+      chapters: 1,
+      format: "epub"
+    });
+    expect(docx).toEqual({
+      outFile: path.join(created.root, "dist", "plain-build.docx"),
+      chapters: 1,
+      format: "docx"
+    });
+    expect(fs.readFileSync(epub.outFile).readUInt32LE(0)).toBe(0x04034b50);
+    expect(fs.readFileSync(docx.outFile).toString("utf8")).toContain("word/document.xml");
+    expect(() => buildBook(created.root, { format: "pdf" })).toThrow("Unsupported build format: pdf");
   });
 });

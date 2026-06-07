@@ -1,6 +1,6 @@
 ---
 title: Harbor of Second Light
-schema-version: 1
+schema-version: 2
 genre: science-fiction
 sub-genre: coastal-mystery
 setting-era: near-future
@@ -12,6 +12,7 @@ themes:
 pov: third-person-limited
 tense: past
 ---
+
 
 # Harbor of Second Light
 

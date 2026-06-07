@@ -36,7 +36,11 @@ describe("cli", () => {
     const cwd = makeTempDir();
     expect(invoke(cwd, []).out).toContain("Usage: story");
     expect(invoke(cwd, ["help"]).out).toContain("Commands:");
-    expect(invoke(cwd, ["--help"]).out).toContain("validate");
+    const help = invoke(cwd, ["--help"]).out;
+    expect(help).toContain("validate");
+    expect(help).toContain("--role <name>");
+    expect(help).toContain("--introduced <id>");
+    expect(help).toContain("--category <name>");
     const unknown = invoke(cwd, ["nope"]);
     expect(unknown.code).toBe(1);
     expect(unknown.err).toContain("Unknown command: nope");
@@ -76,12 +80,17 @@ describe("cli", () => {
     expect(invoke(cwd, ["links", root]).out).toContain("Links are valid");
     const report = invoke(cwd, ["report", root]);
     expect(report.out).toContain("# CLI Story");
-    expect(report.out).toContain("Schema version: 1");
+    expect(report.out).toContain("Schema version: 2");
     expect(report.out).toContain("- Total words: 2");
+    expect(invoke(cwd, ["report", root, "--actionable"]).out).toContain("Next Actions:");
+    expect(invoke(cwd, ["next", root]).out).toContain("Draft chapter 2");
+    expect(invoke(cwd, ["doctor", root]).out).toContain("Story Doctor");
     expect(invoke(cwd, ["export", root, "--out", "out.md"]).out).toContain("Exported 1 chapters");
     const build = invoke(cwd, ["build", root]);
-    expect(build.out).toContain("Built 1 chapters");
+    expect(build.out).toContain("Built 1 chapters as markdown");
     expect(fs.existsSync(path.join(root, "dist", "cli-story.md"))).toBe(true);
+    expect(invoke(cwd, ["build", root, "--format", "epub"]).out).toContain("as epub");
+    expect(fs.existsSync(path.join(root, "dist", "cli-story.epub"))).toBe(true);
   });
 
   test("reports command failures", () => {
@@ -111,9 +120,39 @@ word-count: 0
     expect(links.code).toBe(1);
     expect(links.err).toContain("references missing location missing-place");
 
-    const build = invoke(cwd, ["build", path.join(cwd, "broken"), "--format", "epub"]);
+    const build = invoke(cwd, ["build", path.join(cwd, "broken"), "--format", "pdf"]);
     expect(build.code).toBe(1);
-    expect(build.err).toContain("Unsupported build format: epub");
+    expect(build.err).toContain("Unsupported build format: pdf");
+  });
+
+  test("runs add, rename, remove, and migrate commands", () => {
+    const cwd = makeTempDir();
+    expect(invoke(cwd, ["init", "Helpers"]).code).toBe(0);
+    const root = path.join(cwd, "helpers");
+
+    const character = invoke(cwd, ["add", "character", "Ada Reed", "--path", root, "--role", "protagonist"]);
+    expect(character.code).toBe(0);
+    expect(character.out).toContain("Created character ada-reed");
+    expect(fs.existsSync(path.join(root, "characters", "ada-reed.md"))).toBe(true);
+
+    const renamed = invoke(cwd, ["rename", "character", "ada-reed", "Ada Vale", "--path", root]);
+    expect(renamed.code).toBe(0);
+    expect(fs.existsSync(path.join(root, "characters", "ada-vale.md"))).toBe(true);
+
+    const removed = invoke(cwd, ["remove", "character", "ada-vale", "--path", root]);
+    expect(removed.code).toBe(0);
+    expect(fs.existsSync(path.join(root, "characters", "ada-vale.md"))).toBe(false);
+
+    fs.rmSync(path.join(root, "scenes"), { recursive: true, force: true });
+    fs.writeFileSync(
+      path.join(root, "story.md"),
+      fs.readFileSync(path.join(root, "story.md"), "utf8").replace("schema-version: 2", "schema-version: 1"),
+      "utf8"
+    );
+    const migrated = invoke(cwd, ["migrate", root]);
+    expect(migrated.code).toBe(0);
+    expect(migrated.out).toContain("Migrated project");
+    expect(fs.existsSync(path.join(root, "scenes", "_index.md"))).toBe(true);
   });
 
   test("prints validation warnings on successful validation", () => {

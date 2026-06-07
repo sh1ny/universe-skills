@@ -7,7 +7,7 @@ description: This skill should be used when the user asks to validate, reindex, 
 
 ## Overview
 
-Run deterministic maintenance for Story Skills projects. Use the CLI for structure validation, registry rebuilds, word counts, link checks, project reports, and manuscript export. The creative skills still own story decisions; this skill handles mechanical consistency.
+Run deterministic maintenance for Story Skills projects. Use the CLI for structure validation, registry rebuilds, word counts, link checks, project reports, next-action reports, schema migration, entity helpers, and manuscript export. The creative skills still own story decisions; this skill handles mechanical consistency.
 
 ## CLI Access
 
@@ -31,8 +31,17 @@ story reindex .
 story wordcount . --write
 story links .
 story report .
+story report . --actionable
+story next .
+story doctor .
+story migrate .
+story add character "Name"
+story rename character old-id "New Name"
+story remove promise old-promise
 story export . --out manuscript.md
-story build .
+story build . --format markdown
+story build . --format epub
+story build . --format docx
 ```
 
 Use:
@@ -42,8 +51,12 @@ Use:
 - `wordcount --write` after writing or revising chapters
 - `links` after changing character relationships, notable locations, arc participants, or chapter references
 - `report` when the user asks for project status, inventory, progress, or a quick health summary
+- `next` before a drafting session to identify the next deterministic action
+- `doctor` when the user asks what is stale, broken, or inconsistent
+- `migrate` when a project has an older schema version or missing v2 paths
+- `add`, `rename`, and `remove` for deterministic entity file operations when they fit the requested change
 - `export` only when the user asks for a combined manuscript at a specific path
-- `build` when the user asks to build the book artifact; defaults to `dist/<story-id>.md`
+- `build` when the user asks to build the book artifact; supports markdown, EPUB, and DOCX outputs in `dist/`
 
 ## Failure Handling
 

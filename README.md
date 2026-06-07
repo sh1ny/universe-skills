@@ -4,7 +4,7 @@
 
 **Agent Skills for planning, tracking, and drafting fiction in markdown.**
 
-Story Skills gives agents a shared project format for fiction: a story bible, character files, worldbuilding notes, plot arcs, timelines, and chapter drafts. Everything is plain markdown with YAML frontmatter, packaged as standard Agent Skills with Codex and Claude Code plugin support.
+Story Skills gives agents a shared project format for fiction: a story bible, character files, worldbuilding notes, factions, artifacts, plot arcs, scene state, continuity questions, promises/payoffs, timelines, and chapter drafts. Everything is plain markdown with YAML frontmatter, packaged as standard Agent Skills with Codex and Claude Code plugin support.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-SKILL.md-blue)](https://agentskills.io)
@@ -245,13 +245,21 @@ The CLI is for deterministic maintenance only. Agents should write story content
 | Command | Purpose |
 |---------|---------|
 | `story init "The Last Ember"` | Scaffold a story project with the standard markdown layout |
+| `story add character "Sera Voss"` | Create entity files for characters, locations, systems, factions, artifacts, arcs, chapters, scenes, questions, promises, and glossary terms |
+| `story rename character sera-voss "Sera Vale"` | Rename an entity and update kebab-case references |
+| `story remove promise old-setup` | Remove an entity and scrub metadata references |
+| `story migrate [path]` | Upgrade a project to the current schema |
 | `story validate [path]` | Check required files, schema version, YAML frontmatter, registries, and word-count warnings |
 | `story reindex [path]` | Rebuild registry tables from the current markdown files |
 | `story wordcount [path] --write` | Count chapter prose and update chapter frontmatter plus the chapter registry |
 | `story links [path]` | Check character, location, chapter, and arc cross-references/backlinks |
-| `story report [path]` | Summarize project inventory, progress, word count, and validation/link status |
+| `story report [path] --actionable` | Summarize inventory and optionally include next actions |
+| `story next [path]` | Recommend the next deterministic writing or maintenance actions |
+| `story doctor [path]` | Show health checks with actionable repair steps |
 | `story export [path] --out manuscript.md` | Combine chapters into a single manuscript markdown file |
-| `story build [path]` | Build a disposable markdown book artifact at `dist/<story-id>.md` |
+| `story build [path] --format epub` | Build disposable markdown, EPUB, or DOCX artifacts in `dist/` |
+
+For a complete starter transcript, read [`docs/first-20-minutes.md`](docs/first-20-minutes.md). For the project contract, read [`docs/schema-v2.md`](docs/schema-v2.md) and [`schemas/story.schema.json`](schemas/story.schema.json).
 
 Development uses Bun for tests and coverage:
 
@@ -282,11 +290,24 @@ my-story/
 ├── worldbuilding/
 │   ├── _index.md             # World overview
 │   ├── locations/
-│   └── systems/
+│   ├── systems/
+│   ├── factions/
+│   └── artifacts/
 ├── plot/
 │   ├── _index.md             # Arc overview
 │   ├── arcs/
 │   └── timeline.md
+├── scenes/
+│   └── _index.md             # Machine-readable scene registry
+├── continuity/
+│   ├── state.md              # Character, object, and knowledge state
+│   ├── questions/
+│   │   └── _index.md
+│   └── promises/
+│       └── _index.md
+├── glossary/
+│   ├── _index.md
+│   └── terms/
 └── chapters/
     └── _index.md             # Chapter registry
 ```
@@ -296,10 +317,11 @@ my-story/
 Every story element is a markdown file with YAML frontmatter. The skills cross-reference those files so the project stays consistent:
 
 - **`story.md`** is the top-level bible read by all skills
-- `story.md` includes **`schema-version: 1`** so the CLI can detect incompatible project formats
+- `story.md` includes **`schema-version: 2`** so the CLI can detect incompatible project formats
 - Characters, locations, and arcs use **kebab-case identifiers** (e.g., `sera-voss`)
 - **`_index.md`** files serve as registries for each domain
 - Relationships and references are maintained **bidirectionally**
+- Scene records and continuity state make character knowledge, object ownership, and setup/payoff tracking durable
 - Story content is created directly as markdown; generated build scripts are not part of the project format
 
 ## 📖 Examples

@@ -7,7 +7,7 @@ description: This skill should be used when the user asks to "start a new story"
 
 ## Overview
 
-Initialize a new story project with a structured markdown folder layout. Creates the story bible, character registry, worldbuilding index, plot structure, and chapter tracker - all as cross-referenced markdown files with YAML frontmatter.
+Initialize a new story project with a structured markdown folder layout. Creates the story bible, registries, scene tracking, continuity state, glossary, worldbuilding folders, plot structure, and chapter tracker - all as cross-referenced markdown files with YAML frontmatter.
 
 ## When to Use
 
@@ -50,11 +50,24 @@ If neither command is available, create the files manually using the steps below
 ├── worldbuilding/
 │   ├── _index.md
 │   ├── locations/
-│   └── systems/
+│   ├── systems/
+│   ├── factions/
+│   └── artifacts/
 ├── plot/
 │   ├── _index.md
 │   ├── arcs/
 │   └── timeline.md
+├── scenes/
+│   └── _index.md
+├── continuity/
+│   ├── state.md
+│   ├── questions/
+│   │   └── _index.md
+│   └── promises/
+│       └── _index.md
+├── glossary/
+│   ├── _index.md
+│   └── terms/
 └── chapters/
     └── _index.md
 ```
@@ -64,7 +77,7 @@ If neither command is available, create the files manually using the steps below
 ```yaml
 ---
 title: "{Title}"
-schema-version: 1
+schema-version: 2
 genre: {genre}
 sub-genre: {sub-genre}
 setting-era: {era}
@@ -193,10 +206,21 @@ story: {story-title-kebab}
 ## Total Word Count: 0
 ```
 
+Also create the v2 support files:
+
+- `scenes/_index.md` with frontmatter `type: scene-registry`
+- `continuity/state.md` with frontmatter `type: continuity-state`, `current-chapter: 0`, and empty `character-state`, `object-state`, and `knowledge-state` lists
+- `continuity/questions/_index.md` with frontmatter `type: question-registry`
+- `continuity/promises/_index.md` with frontmatter `type: promise-registry`
+- `glossary/_index.md` with frontmatter `type: glossary-registry`
+
+If manual initialization gets tedious, stop and ask the user to install or run the Story CLI rather than inventing a different project shape.
+
 5. Present a summary of what was created and suggest next steps:
    - "Add your first character" (triggers character-management skill)
    - "Start worldbuilding" (triggers worldbuilding skill)
    - "Define your plot structure" (triggers plot-structure skill)
+   - "Run `story next .`" to show deterministic next actions
 
 6. When CLI access is available, run a final maintenance check:
 
@@ -212,10 +236,12 @@ These conventions apply across ALL story skills:
 
 - **Kebab-case filenames** for all entity files (e.g., `sera-voss.md`, `ashen-citadel.md`)
 - **YAML frontmatter** on every file for structured metadata
-- **Schema version** - `story.md` frontmatter includes `schema-version: 1`
+- **Schema version** - `story.md` frontmatter includes `schema-version: 2`
 - **`_index.md`** files are authoritative registries for each domain
 - **`story.md`** is the top-level bible read by all skills for context
 - **Bidirectional cross-links** - when referencing another entity, update both files
 - **Character identifiers** use the kebab-case filename without extension (e.g., `sera-voss`)
+- **Scene identifiers** use `chapter-{NN}-scene-{NN}` and live in `scenes/`
+- **Continuity state** lives in `continuity/state.md`, with open questions and promises tracked under `continuity/questions/` and `continuity/promises/`
 - **Markdown-first artifacts** - create and edit story content directly in the target `.md` files. Do not create project-local build scripts, generator scripts, or bulk writer scripts (for example `build-*.js`) to emit story files.
 - **CLI helpers stay external** - the only JavaScript helper agents should run is the installed or bundled Story CLI (`story`, `bun run story --`, or `story-maintenance/scripts/story.js`) for deterministic maintenance. Do not copy it into the user's story project, and remove any unavoidable scratch helper before finishing.

@@ -48,7 +48,8 @@ Plot points live within arc files in the "Plot Points" table. When adding a plot
 2. Add the plot point to the table with chapter reference (if known)
 3. Add the event to `plot/timeline.md` in chronological order
 4. If the plot point involves foreshadowing, add it to the arc's foreshadowing table
-5. When CLI access is available, run `story validate .`
+5. If the plot point creates a reader promise or mystery, create or update a record in `continuity/promises/` or `continuity/questions/`
+6. When CLI access is available, run `story validate .`
 
 ## Timeline Management
 
@@ -74,6 +75,8 @@ Each arc tracks its own foreshadowing in the "Foreshadowing" table:
 
 During chapter writing, flag any `planted` items that haven't been paid off as reminders.
 
+For durable cross-arc setup/payoff tracking, also maintain `continuity/promises/{promise-kebab}.md` with `status`, `planted`, `payoff`, `arcs`, and `characters`. For mystery or open-continuity tracking, maintain `continuity/questions/{question-kebab}.md`.
+
 ## Cross-Referencing
 
 - Arcs reference characters via frontmatter `characters` field
@@ -81,6 +84,7 @@ During chapter writing, flag any `planted` items that haven't been paid off as r
 - Plot points reference chapters
 - Timeline entries link arcs and chapters
 - Theme tracking in `plot/_index.md` maps themes to arcs and chapters
+- Promises and questions reference chapters, arcs, and characters where relevant
 
 ## CLI Maintenance
 
@@ -89,4 +93,6 @@ Use the Story CLI when it is available. If `story` is not installed but the `sto
 ## Reference Files
 
 - **`references/arc-template.md`** - Template for arc files with frontmatter and sections
+- **`references/question-template.md`** - Template for continuity questions and mysteries
+- **`references/promise-template.md`** - Template for setup/payoff tracking
 - **`references/structure-models.md`** - Story structure models (three-act, hero's journey, save the cat, kishotenketsu, five-act) with beat sheets

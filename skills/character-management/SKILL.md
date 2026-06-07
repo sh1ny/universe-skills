@@ -27,7 +27,7 @@ A story project must already exist (created via the story-init skill). Verify by
    - Character arc (starting state, turning points, ending state)
    - Key life events for the timeline
 5. Write the character file using the template in `references/character-template.md`
-6. Save to `characters/{name-kebab}.md`
+6. Save to `characters/{name-kebab}.md`, or use `story add character "{Name}" --role "{role}"` when the CLI is available
 7. Update `characters/_index.md` registry table
 8. If relationships reference existing characters, update those character files too
 9. When CLI access is available, run the maintenance pass in the story root:
@@ -75,6 +75,8 @@ Indent children under parents. Note marriages/partnerships inline.
 
 - When a character is referenced in worldbuilding (e.g., a location's `notable-characters`), ensure the link exists both ways
 - Character-location backlinks live in the character file's `locations` frontmatter list
+- Faction memberships live in `worldbuilding/factions/{faction-kebab}.md` under `members`
+- Artifact ownership can reference a character id in `worldbuilding/artifacts/{artifact-kebab}.md`
 - When a character appears in a plot arc, ensure they're listed in the arc's `characters` frontmatter
 - Character tags should be consistent across the project (e.g., if `magic-user` is used, always use that exact tag)
 

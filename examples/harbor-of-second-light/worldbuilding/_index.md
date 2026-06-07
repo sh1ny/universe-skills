@@ -21,3 +21,15 @@ Port Kestrel is a floating harbor built over the drowned remains of an old coast
 | Name | Type | File |
 |------|------|------|
 | Afterimage Archive | Technology | [afterimage-archive](systems/afterimage-archive.md) |
+
+## Factions
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+| *No factions yet* | | | |
+
+## Artifacts
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+| *No artifacts yet* | | | |

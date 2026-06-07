@@ -9,9 +9,9 @@ story: the-last-ember
 
 | Name | Role | Status | File |
 |------|------|--------|------|
-| Sera Voss | protagonist | alive | [sera-voss](sera-voss.md) |
 | Kael Voss | supporting | alive | [kael-voss](kael-voss.md) |
 | Lord Maren | antagonist | alive | [lord-maren](lord-maren.md) |
+| Sera Voss | protagonist | alive | [sera-voss](sera-voss.md) |
 
 ## Relationship Map
 

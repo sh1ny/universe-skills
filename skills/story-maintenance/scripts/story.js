@@ -4,6 +4,7 @@
 import path2 from "node:path";
 
 // src/story.js
+import { Buffer } from "node:buffer";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -191,24 +192,38 @@ function stripLeadingH1(markdownBody) {
 }
 
 // src/story.js
-var STORY_SCHEMA_VERSION = 1;
+var STORY_SCHEMA_VERSION = 2;
 var REQUIRED_PATHS = [
   "story.md",
   "characters/_index.md",
   "worldbuilding/_index.md",
   "worldbuilding/locations",
   "worldbuilding/systems",
+  "worldbuilding/factions",
+  "worldbuilding/artifacts",
   "plot/_index.md",
   "plot/arcs",
   "plot/timeline.md",
-  "chapters/_index.md"
+  "chapters/_index.md",
+  "scenes/_index.md",
+  "continuity/state.md",
+  "continuity/questions/_index.md",
+  "continuity/questions",
+  "continuity/promises/_index.md",
+  "continuity/promises",
+  "glossary/_index.md",
+  "glossary/terms"
 ];
 var INDEX_SCHEMAS = [
   [path.join("characters", "_index.md"), "character-registry"],
   [path.join("worldbuilding", "_index.md"), "world-registry"],
   [path.join("plot", "_index.md"), "plot-registry"],
   [path.join("plot", "timeline.md"), "timeline"],
-  [path.join("chapters", "_index.md"), "chapter-registry"]
+  [path.join("chapters", "_index.md"), "chapter-registry"],
+  [path.join("scenes", "_index.md"), "scene-registry"],
+  [path.join("continuity", "questions", "_index.md"), "question-registry"],
+  [path.join("continuity", "promises", "_index.md"), "promise-registry"],
+  [path.join("glossary", "_index.md"), "glossary-registry"]
 ];
 var STORY_STATUSES = new Set(["planning", "drafting", "in-progress", "revising", "complete", "abandoned"]);
 var STORY_TENSES = new Set(["past", "present", "future", "mixed"]);
@@ -217,6 +232,14 @@ var CHARACTER_STATUSES = new Set(["alive", "deceased", "unknown", "missing"]);
 var ARC_TYPES = new Set(["main", "subplot", "character", "thematic"]);
 var ARC_STATUSES = new Set(["planned", "in-progress", "resolved"]);
 var CHAPTER_STATUSES = new Set(["outline", "draft", "revised", "final", "complete"]);
+var SCENE_STATUSES = new Set(["outline", "draft", "revised", "final", "complete"]);
+var FACTION_TYPES = new Set(["family", "guild", "government", "military", "religion", "company", "community", "criminal", "other"]);
+var FACTION_STATUSES = new Set(["active", "hidden", "declining", "defeated", "disbanded", "unknown"]);
+var ARTIFACT_TYPES = new Set(["object", "weapon", "document", "technology", "relic", "symbol", "resource", "other"]);
+var ARTIFACT_STATUSES = new Set(["active", "lost", "destroyed", "hidden", "transferred", "unknown"]);
+var QUESTION_STATUSES = new Set(["open", "answered", "resolved", "dropped"]);
+var PROMISE_STATUSES = new Set(["planned", "planted", "paid-off", "dropped"]);
+var TERM_CATEGORIES = new Set(["person", "place", "faction", "artifact", "concept", "term", "other"]);
 var RELATIONSHIP_INVERSES = new Map([
   ["parent", "child"],
   ["child", "parent"],
@@ -259,8 +282,14 @@ function createStoryProject(options) {
   fs.mkdirSync(path.join(root, "characters"), { recursive: true });
   fs.mkdirSync(path.join(root, "worldbuilding", "locations"), { recursive: true });
   fs.mkdirSync(path.join(root, "worldbuilding", "systems"), { recursive: true });
+  fs.mkdirSync(path.join(root, "worldbuilding", "factions"), { recursive: true });
+  fs.mkdirSync(path.join(root, "worldbuilding", "artifacts"), { recursive: true });
   fs.mkdirSync(path.join(root, "plot", "arcs"), { recursive: true });
   fs.mkdirSync(path.join(root, "chapters"), { recursive: true });
+  fs.mkdirSync(path.join(root, "scenes"), { recursive: true });
+  fs.mkdirSync(path.join(root, "continuity", "questions"), { recursive: true });
+  fs.mkdirSync(path.join(root, "continuity", "promises"), { recursive: true });
+  fs.mkdirSync(path.join(root, "glossary", "terms"), { recursive: true });
   writeFile(path.join(root, "story.md"), storyBible({
     title,
     storyId,
@@ -273,10 +302,15 @@ function createStoryProject(options) {
     synopsis: options.synopsis ?? "Add a 2-3 sentence synopsis here."
   }));
   writeFile(path.join(root, "characters", "_index.md"), characterIndex(storyId, [], "", ""));
-  writeFile(path.join(root, "worldbuilding", "_index.md"), worldIndex(storyId, [], [], ""));
+  writeFile(path.join(root, "worldbuilding", "_index.md"), worldIndex(storyId, [], [], [], [], ""));
   writeFile(path.join(root, "plot", "_index.md"), plotIndex(storyId, "three-act", [], "", ""));
   writeFile(path.join(root, "plot", "timeline.md"), timeline(storyId));
   writeFile(path.join(root, "chapters", "_index.md"), chapterIndex(storyId, []));
+  writeFile(path.join(root, "scenes", "_index.md"), sceneIndex(storyId, []));
+  writeFile(path.join(root, "continuity", "state.md"), continuityState(storyId));
+  writeFile(path.join(root, "continuity", "questions", "_index.md"), questionIndex(storyId, []));
+  writeFile(path.join(root, "continuity", "promises", "_index.md"), promiseIndex(storyId, []));
+  writeFile(path.join(root, "glossary", "_index.md"), glossaryIndex(storyId, []));
   return { root, storyId, files: REQUIRED_PATHS.filter((entry) => entry.endsWith(".md")) };
 }
 function scanProject(root) {
@@ -310,6 +344,24 @@ function scanProject(root) {
       name: data.name ?? titleCaseSlug(id),
       type: data.type ?? ""
     })),
+    factions: readEntityFiles(projectRoot, path.join("worldbuilding", "factions"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      status: data.status ?? "",
+      members: asArray(data.members),
+      locations: asArray(data.locations)
+    })),
+    artifacts: readEntityFiles(projectRoot, path.join("worldbuilding", "artifacts"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      status: data.status ?? "",
+      owner: data.owner ?? "",
+      location: data.location ?? ""
+    })),
     arcs: readEntityFiles(projectRoot, path.join("plot", "arcs"), (id, file, data) => ({
       id,
       file,
@@ -331,7 +383,47 @@ function scanProject(root) {
       arcsAdvanced: asArray(data["arcs-advanced"]),
       declaredWordCount: Number(data["word-count"] ?? 0),
       wordCount: wordCount(chapterProse(markdown.body))
-    })).sort((left, right) => left.number - right.number || left.file.localeCompare(right.file))
+    })).sort((left, right) => left.number - right.number || left.file.localeCompare(right.file)),
+    scenes: readEntityFiles(projectRoot, "scenes", (id, file, data) => ({
+      id,
+      file,
+      title: data.title ?? titleCaseSlug(id),
+      chapter: data.chapter ?? "",
+      scene: Number(data.scene ?? sceneNumberFromFile(file) ?? 0),
+      pov: data.pov ?? "",
+      location: data.location ?? "",
+      status: data.status ?? "",
+      characters: asArray(data.characters),
+      arcsAdvanced: asArray(data["arcs-advanced"]),
+      stateChanges: asArray(data["state-changes"])
+    })).sort((left, right) => left.chapter.localeCompare(right.chapter) || left.scene - right.scene || left.file.localeCompare(right.file)),
+    questions: readEntityFiles(projectRoot, path.join("continuity", "questions"), (id, file, data) => ({
+      id,
+      file,
+      title: data.title ?? titleCaseSlug(id),
+      status: data.status ?? "",
+      introduced: data.introduced ?? "",
+      resolved: data.resolved ?? "",
+      characters: asArray(data.characters)
+    })),
+    promises: readEntityFiles(projectRoot, path.join("continuity", "promises"), (id, file, data) => ({
+      id,
+      file,
+      title: data.title ?? titleCaseSlug(id),
+      status: data.status ?? "",
+      planted: data.planted ?? "",
+      payoff: data.payoff ?? "",
+      arcs: asArray(data.arcs),
+      characters: asArray(data.characters)
+    })),
+    glossaryTerms: readEntityFiles(projectRoot, path.join("glossary", "terms"), (id, file, data) => ({
+      id,
+      file,
+      term: data.term ?? titleCaseSlug(id),
+      category: data.category ?? "",
+      aliases: asArray(data.aliases)
+    })),
+    continuity: fs.existsSync(path.join(projectRoot, "continuity", "state.md")) ? readMarkdown(path.join(projectRoot, "continuity", "state.md")) : null
   };
 }
 function validateProject(root) {
@@ -352,13 +444,24 @@ function validateProject(root) {
   validateCharacters(project, errors);
   validateLocations(project, errors);
   validateSystems(project, errors);
+  validateFactions(project, errors);
+  validateArtifacts(project, errors);
   validateArcs(project, errors);
   validateChapters(project, errors);
+  validateScenes(project, errors);
+  validateContinuityState(project, errors);
+  validateQuestions(project, errors);
+  validatePromises(project, errors);
+  validateGlossaryTerms(project, errors);
   const indexChecks = [
     [path.join("characters", "_index.md"), project.characters.map((item) => `](${item.id}.md)`)],
-    [path.join("worldbuilding", "_index.md"), project.locations.map((item) => `](locations/${item.id}.md)`).concat(project.systems.map((item) => `](systems/${item.id}.md)`))],
+    [path.join("worldbuilding", "_index.md"), project.locations.map((item) => `](locations/${item.id}.md)`).concat(project.systems.map((item) => `](systems/${item.id}.md)`)).concat(project.factions.map((item) => `](factions/${item.id}.md)`)).concat(project.artifacts.map((item) => `](artifacts/${item.id}.md)`))],
     [path.join("plot", "_index.md"), project.arcs.map((item) => `](arcs/${item.id}.md)`)],
-    [path.join("chapters", "_index.md"), project.chapters.map((item) => `](${path.basename(item.file)})`)]
+    [path.join("chapters", "_index.md"), project.chapters.map((item) => `](${path.basename(item.file)})`)],
+    [path.join("scenes", "_index.md"), project.scenes.map((item) => `](${item.id}.md)`)],
+    [path.join("continuity", "questions", "_index.md"), project.questions.map((item) => `](${item.id}.md)`)],
+    [path.join("continuity", "promises", "_index.md"), project.promises.map((item) => `](${item.id}.md)`)],
+    [path.join("glossary", "_index.md"), project.glossaryTerms.map((item) => `](terms/${item.id}.md)`)]
   ];
   for (const [indexPath, links] of indexChecks) {
     const markdown = fs.readFileSync(path.join(projectRoot, indexPath), "utf8");
@@ -372,6 +475,9 @@ function validateProject(root) {
     if (chapter.declaredWordCount !== chapter.wordCount) {
       warnings.push(`${path.relative(projectRoot, chapter.file)} declares ${chapter.declaredWordCount} words but contains ${chapter.wordCount}`);
     }
+    if (!project.scenes.some((scene) => scene.chapter === chapter.id)) {
+      warnings.push(`${path.relative(projectRoot, chapter.file)} has no machine-readable scene records`);
+    }
   }
   return { ok: errors.length === 0, errors, warnings };
 }
@@ -381,7 +487,9 @@ function validateLinks(root) {
   const warnings = [];
   const characters = new Map(project.characters.map((item) => [item.id, item]));
   const locations = new Map(project.locations.map((item) => [item.id, item]));
+  const chapters = new Map(project.chapters.map((item) => [item.id, item]));
   const arcs = new Map(project.arcs.map((item) => [item.id, item]));
+  const factions = new Map(project.factions.map((item) => [item.id, item]));
   for (const character of project.characters) {
     for (const relationship of character.relationships) {
       const target = relationship.character;
@@ -441,6 +549,76 @@ function validateLinks(root) {
       }
     }
   }
+  for (const faction of project.factions) {
+    for (const characterId of faction.members) {
+      if (!characters.has(characterId)) {
+        errors.push(`${relative(project, faction.file)} references missing member ${characterId}`);
+      }
+    }
+    for (const locationId of faction.locations) {
+      if (!locations.has(locationId)) {
+        errors.push(`${relative(project, faction.file)} references missing location ${locationId}`);
+      }
+    }
+  }
+  for (const artifact of project.artifacts) {
+    if (artifact.owner && !characters.has(artifact.owner) && !factions.has(artifact.owner)) {
+      errors.push(`${relative(project, artifact.file)} references missing owner ${artifact.owner}`);
+    }
+    if (artifact.location && !locations.has(artifact.location)) {
+      errors.push(`${relative(project, artifact.file)} references missing location ${artifact.location}`);
+    }
+  }
+  for (const scene of project.scenes) {
+    if (scene.chapter && !chapters.has(scene.chapter)) {
+      errors.push(`${relative(project, scene.file)} references missing chapter ${scene.chapter}`);
+    }
+    if (scene.pov && !characters.has(scene.pov)) {
+      errors.push(`${relative(project, scene.file)} references missing POV character ${scene.pov}`);
+    }
+    if (scene.location && !locations.has(scene.location)) {
+      errors.push(`${relative(project, scene.file)} references missing location ${scene.location}`);
+    }
+    for (const characterId of scene.characters) {
+      if (!characters.has(characterId)) {
+        errors.push(`${relative(project, scene.file)} references missing character ${characterId}`);
+      }
+    }
+    for (const arcId of scene.arcsAdvanced) {
+      if (!arcs.has(arcId)) {
+        errors.push(`${relative(project, scene.file)} references missing arc ${arcId}`);
+      }
+    }
+  }
+  for (const question of project.questions) {
+    for (const chapterId of [question.introduced, question.resolved].filter(Boolean)) {
+      if (!chapters.has(chapterId)) {
+        errors.push(`${relative(project, question.file)} references missing chapter ${chapterId}`);
+      }
+    }
+    for (const characterId of question.characters) {
+      if (!characters.has(characterId)) {
+        errors.push(`${relative(project, question.file)} references missing character ${characterId}`);
+      }
+    }
+  }
+  for (const promise of project.promises) {
+    for (const chapterId of [promise.planted, promise.payoff].filter(Boolean)) {
+      if (!chapters.has(chapterId)) {
+        errors.push(`${relative(project, promise.file)} references missing chapter ${chapterId}`);
+      }
+    }
+    for (const arcId of promise.arcs) {
+      if (!arcs.has(arcId)) {
+        errors.push(`${relative(project, promise.file)} references missing arc ${arcId}`);
+      }
+    }
+    for (const characterId of promise.characters) {
+      if (!characters.has(characterId)) {
+        errors.push(`${relative(project, promise.file)} references missing character ${characterId}`);
+      }
+    }
+  }
   return { ok: errors.length === 0, errors, warnings };
 }
 function projectReport(root) {
@@ -462,8 +640,14 @@ function projectReport(root) {
       characters: project.characters.length,
       locations: project.locations.length,
       systems: project.systems.length,
+      factions: project.factions.length,
+      artifacts: project.artifacts.length,
       arcs: project.arcs.length,
       chapters: project.chapters.length,
+      scenes: project.scenes.length,
+      questions: project.questions.length,
+      promises: project.promises.length,
+      glossaryTerms: project.glossaryTerms.length,
       words: totalWords
     },
     chapters: project.chapters.map((chapter) => ({
@@ -480,10 +664,11 @@ function projectReport(root) {
       characters: arc.characters.length
     })),
     validation,
-    links
+    links,
+    actions: buildProjectActions(project, validation, links)
   };
 }
-function formatProjectReport(report) {
+function formatProjectReport(report, options = {}) {
   const lines = [
     `# ${report.title}`,
     "",
@@ -497,8 +682,14 @@ function formatProjectReport(report) {
     `- Characters: ${report.counts.characters}`,
     `- Locations: ${report.counts.locations}`,
     `- Systems: ${report.counts.systems}`,
+    `- Factions: ${report.counts.factions}`,
+    `- Artifacts: ${report.counts.artifacts}`,
     `- Arcs: ${report.counts.arcs}`,
     `- Chapters: ${report.counts.chapters}`,
+    `- Scenes: ${report.counts.scenes}`,
+    `- Questions: ${report.counts.questions}`,
+    `- Promises: ${report.counts.promises}`,
+    `- Glossary terms: ${report.counts.glossaryTerms}`,
     `- Total words: ${report.counts.words}`,
     "",
     "Chapters:"
@@ -519,6 +710,53 @@ function formatProjectReport(report) {
     }
   }
   lines.push("", "Checks:", `- Validate: ${formatCheck(report.validation)}`, `- Links: ${formatCheck(report.links)}`);
+  if (options.actionable) {
+    lines.push("", "Next Actions:");
+    appendActionLines(lines, report.actions);
+  }
+  return `${lines.join(`
+`)}
+`;
+}
+function projectActions(root) {
+  const project = scanProject(root);
+  const validation = validateProject(project.root);
+  const links = validateLinks(project.root);
+  return {
+    root: project.root,
+    title: project.story.data.title,
+    storyId: project.storyId,
+    actions: buildProjectActions(project, validation, links),
+    validation,
+    links
+  };
+}
+function formatActionReport(report) {
+  const lines = [
+    `# Next Writing Actions: ${report.title}`,
+    "",
+    `Checks: validate ${formatCheck(report.validation)}, links ${formatCheck(report.links)}`,
+    "",
+    "Actions:"
+  ];
+  appendActionLines(lines, report.actions);
+  return `${lines.join(`
+`)}
+`;
+}
+function formatDoctorReport(report) {
+  const lines = [
+    `# Story Doctor: ${report.title}`,
+    "",
+    `Root: ${report.root}`,
+    "",
+    "Checks:",
+    `- Validate: ${formatCheck(report.validation)}`,
+    `- Links: ${formatCheck(report.links)}`,
+    "",
+    "Actions:"
+  ];
+  appendActionLines(lines, report.actions);
   return `${lines.join(`
 `)}
 `;
@@ -530,14 +768,22 @@ function reindexProject(root) {
   const worldIndexPath = path.join(project.root, "worldbuilding", "_index.md");
   const plotIndexPath = path.join(project.root, "plot", "_index.md");
   const chaptersIndexPath = path.join(project.root, "chapters", "_index.md");
+  const scenesIndexPath = path.join(project.root, "scenes", "_index.md");
+  const questionsIndexPath = path.join(project.root, "continuity", "questions", "_index.md");
+  const promisesIndexPath = path.join(project.root, "continuity", "promises", "_index.md");
+  const glossaryIndexPath = path.join(project.root, "glossary", "_index.md");
   const existingCharacters = safeRead(charactersIndexPath);
   const existingWorld = safeRead(worldIndexPath);
   const existingPlot = safeRead(plotIndexPath);
   const plotFrontmatter = parseFrontmatter(existingPlot, "plot/_index.md").data;
   writeChanged(charactersIndexPath, characterIndex(project.storyId, project.characters, extractSection(existingCharacters, "Relationship Map"), extractSection(existingCharacters, "Family Trees")), changed);
-  writeChanged(worldIndexPath, worldIndex(project.storyId, project.locations, project.systems, extractSection(existingWorld, "World Overview")), changed);
+  writeChanged(worldIndexPath, worldIndex(project.storyId, project.locations, project.systems, project.factions, project.artifacts, extractSection(existingWorld, "World Overview")), changed);
   writeChanged(plotIndexPath, plotIndex(project.storyId, plotFrontmatter.structure ?? "three-act", project.arcs, extractSection(existingPlot, "Story Structure"), extractSection(existingPlot, "Theme Tracking")), changed);
   writeChanged(chaptersIndexPath, chapterIndex(project.storyId, project.chapters), changed);
+  writeChanged(scenesIndexPath, sceneIndex(project.storyId, project.scenes), changed);
+  writeChanged(questionsIndexPath, questionIndex(project.storyId, project.questions), changed);
+  writeChanged(promisesIndexPath, promiseIndex(project.storyId, project.promises), changed);
+  writeChanged(glossaryIndexPath, glossaryIndex(project.storyId, project.glossaryTerms), changed);
   return { changed };
 }
 function computeWordCounts(root, options = {}) {
@@ -573,10 +819,10 @@ function exportManuscript(root, options = {}) {
   }
   const outFile = path.resolve(project.root, options.out ?? "manuscript.md");
   const generatedBy = options.generatedBy ?? "story export";
-  const lines = [`# ${project.story.data.title}`, "", `<!-- Generated by ${generatedBy}. -->`, ""];
-  for (const chapter of project.chapters) {
-    const markdown = readMarkdown(chapter.file);
-    lines.push(`# Chapter ${chapter.number}: ${chapter.title}`, "", chapterProse(markdown.body).trim(), "");
+  const manuscript = manuscriptParts(project);
+  const lines = [`# ${manuscript.title}`, "", `<!-- Generated by ${generatedBy}. -->`, ""];
+  for (const chapter of manuscript.chapters) {
+    lines.push(`# Chapter ${chapter.number}: ${chapter.title}`, "", chapter.body, "");
   }
   writeFile(outFile, `${lines.join(`
 `).trimEnd()}
@@ -586,12 +832,114 @@ function exportManuscript(root, options = {}) {
 function buildBook(root, options = {}) {
   const format = normalizeBuildFormat(options.format ?? "markdown");
   const project = scanProject(root);
-  const outFile = path.resolve(project.root, options.out ?? path.join("dist", `${project.storyId}.md`));
-  const result = exportManuscript(project.root, {
-    out: outFile,
-    generatedBy: "story build"
-  });
-  return { ...result, format };
+  const extension = format === "markdown" ? "md" : format;
+  const outFile = path.resolve(project.root, options.out ?? path.join("dist", `${project.storyId}.${extension}`));
+  if (format === "markdown") {
+    const result = exportManuscript(project.root, {
+      out: outFile,
+      generatedBy: "story build"
+    });
+    return { ...result, format };
+  }
+  const manuscript = manuscriptParts(project);
+  if (format === "epub") {
+    writeEpub(outFile, project.storyId, manuscript);
+  } else {
+    writeDocx(outFile, manuscript);
+  }
+  return { outFile, chapters: manuscript.chapters.length, format };
+}
+function migrateProject(root) {
+  const projectRoot = path.resolve(root);
+  const storyPath = path.join(projectRoot, "story.md");
+  const story = readMarkdown(storyPath);
+  const storyId = kebabCase(story.data.title ?? path.basename(projectRoot));
+  const changed = [];
+  for (const directory of [
+    path.join("worldbuilding", "factions"),
+    path.join("worldbuilding", "artifacts"),
+    "scenes",
+    path.join("continuity", "questions"),
+    path.join("continuity", "promises"),
+    path.join("glossary", "terms")
+  ]) {
+    ensureDirectory(path.join(projectRoot, directory), changed);
+  }
+  ensureFile(path.join(projectRoot, "scenes", "_index.md"), sceneIndex(storyId, []), changed);
+  ensureFile(path.join(projectRoot, "continuity", "state.md"), continuityState(storyId), changed);
+  ensureFile(path.join(projectRoot, "continuity", "questions", "_index.md"), questionIndex(storyId, []), changed);
+  ensureFile(path.join(projectRoot, "continuity", "promises", "_index.md"), promiseIndex(storyId, []), changed);
+  ensureFile(path.join(projectRoot, "glossary", "_index.md"), glossaryIndex(storyId, []), changed);
+  if (story.data["schema-version"] !== STORY_SCHEMA_VERSION) {
+    writeFile(storyPath, replaceFrontmatter(story.rawMarkdown, {
+      ...story.data,
+      "schema-version": STORY_SCHEMA_VERSION
+    }));
+    changed.push(storyPath);
+  }
+  const reindexed = reindexProject(projectRoot);
+  return { root: projectRoot, changed: changed.concat(reindexed.changed) };
+}
+function createEntity(root, options) {
+  const project = scanProject(root);
+  const kind = normalizeKind(options.kind);
+  const name = String(options.name ?? "").trim();
+  if (!name) {
+    throw new Error(`A ${kind} name is required`);
+  }
+  const entity = buildEntity(project, kind, name, options);
+  if (fs.existsSync(entity.file)) {
+    throw new Error(`${relative(project, entity.file)} already exists`);
+  }
+  writeFile(entity.file, entity.markdown);
+  applyEntityBacklinks(project.root, kind, entity.id, readMarkdown(entity.file).data);
+  const reindexed = reindexProject(project.root);
+  return { kind, id: entity.id, file: entity.file, changed: [entity.file].concat(reindexed.changed) };
+}
+function renameEntity(root, options) {
+  const project = scanProject(root);
+  const kind = normalizeKind(options.kind);
+  const oldId = String(options.id ?? "").trim();
+  const name = String(options.name ?? "").trim();
+  if (!oldId || !name) {
+    throw new Error("rename requires an entity id and a new name");
+  }
+  const config = entityConfig(kind);
+  const oldFile = path.join(project.root, config.dir, `${oldId}.md`);
+  if (!fs.existsSync(oldFile)) {
+    throw new Error(`${kind} ${oldId} does not exist`);
+  }
+  const markdown = readMarkdown(oldFile);
+  const newId = kind === "chapter" ? oldId : kebabCase(name);
+  const newFile = path.join(project.root, config.dir, `${newId}.md`);
+  if (newFile !== oldFile && fs.existsSync(newFile)) {
+    throw new Error(`${kind} ${newId} already exists`);
+  }
+  const data = { ...markdown.data, [config.titleField]: name };
+  writeFile(oldFile, replaceFrontmatter(markdown.rawMarkdown, data));
+  if (newFile !== oldFile) {
+    fs.renameSync(oldFile, newFile);
+    replaceEntityReferences(project.root, oldId, newId);
+  }
+  const reindexed = reindexProject(project.root);
+  return { kind, oldId, id: newId, file: newFile, changed: [newFile].concat(reindexed.changed) };
+}
+function removeEntity(root, options) {
+  const project = scanProject(root);
+  const kind = normalizeKind(options.kind);
+  const id = String(options.id ?? "").trim();
+  if (!id) {
+    throw new Error("remove requires an entity id");
+  }
+  const config = entityConfig(kind);
+  const file = path.join(project.root, config.dir, `${id}.md`);
+  if (!fs.existsSync(file)) {
+    throw new Error(`${kind} ${id} does not exist`);
+  }
+  fs.rmSync(file);
+  removeEntityReferences(project.root, id);
+  const reindexed = reindexProject(project.root);
+  return { kind, id, file, changed: [file].concat(reindexed.changed) };
 }
 function storyBible(options) {
   return `${stringifyFrontmatter({
@@ -638,9 +986,11 @@ ${relationshipMap || "*No relationships defined yet.*"}
 ${familyTrees || "*No family trees defined yet.*"}
 `;
 }
-function worldIndex(storyId, locations, systems, overview) {
+function worldIndex(storyId, locations, systems, factions, artifacts, overview) {
   const locationRows = locations.length === 0 ? ["| *No locations yet* | | | |"] : locations.map((location) => `| ${location.name} | ${titleCaseSlug(location.type)} | ${location.region} | [${location.id}](locations/${location.id}.md) |`);
   const systemRows = systems.length === 0 ? ["| *No systems yet* | | |"] : systems.map((system) => `| ${system.name} | ${titleCaseSlug(system.type)} | [${system.id}](systems/${system.id}.md) |`);
+  const factionRows = factions.length === 0 ? ["| *No factions yet* | | | |"] : factions.map((faction) => `| ${faction.name} | ${titleCaseSlug(faction.type)} | ${faction.status} | [${faction.id}](factions/${faction.id}.md) |`);
+  const artifactRows = artifacts.length === 0 ? ["| *No artifacts yet* | | | |"] : artifacts.map((artifact) => `| ${artifact.name} | ${titleCaseSlug(artifact.type)} | ${artifact.status} | [${artifact.id}](artifacts/${artifact.id}.md) |`);
   return `${stringifyFrontmatter({ type: "world-registry", story: storyId })}# Worldbuilding
 
 ## World Overview
@@ -659,6 +1009,20 @@ ${locationRows.join(`
 | Name | Type | File |
 |------|------|------|
 ${systemRows.join(`
+`)}
+
+## Factions
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+${factionRows.join(`
+`)}
+
+## Artifacts
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+${artifactRows.join(`
 `)}
 `;
 }
@@ -707,6 +1071,786 @@ function timeline(storyId) {
 | *No events yet* | | | |
 `;
 }
+function sceneIndex(storyId, scenes) {
+  const rows = scenes.length === 0 ? ["| *No scenes yet* | | | | | |"] : scenes.map((scene) => `| ${scene.chapter} | ${scene.scene} | ${scene.title} | ${scene.pov} | ${scene.status} | [${scene.id}](${scene.id}.md) |`);
+  return `${stringifyFrontmatter({ type: "scene-registry", story: storyId })}# Scenes
+
+## Registry
+
+| Chapter | Scene | Title | POV | Status | File |
+|---------|-------|-------|-----|--------|------|
+${rows.join(`
+`)}
+`;
+}
+function continuityState(storyId) {
+  return `${stringifyFrontmatter({
+    type: "continuity-state",
+    story: storyId,
+    "current-chapter": 0,
+    "character-state": [],
+    "object-state": [],
+    "knowledge-state": []
+  })}# Continuity State
+
+## Current Story State
+
+Track facts that must carry forward between chapters.
+
+## Character State
+
+| Character | Location | Physical State | Emotional State | Knowledge |
+|-----------|----------|----------------|-----------------|-----------|
+| *No state entries yet* | | | | |
+
+## Object State
+
+| Artifact | Owner | Location | Status |
+|----------|-------|----------|--------|
+| *No object state entries yet* | | | |
+
+## Knowledge State
+
+| Character | Knows | Learned In |
+|-----------|-------|------------|
+| *No knowledge entries yet* | | |
+`;
+}
+function questionIndex(storyId, questions) {
+  const rows = questions.length === 0 ? ["| *No questions yet* | | | |"] : questions.map((question) => `| ${question.title} | ${question.status} | ${question.introduced} | [${question.id}](${question.id}.md) |`);
+  return `${stringifyFrontmatter({ type: "question-registry", story: storyId })}# Continuity Questions
+
+## Registry
+
+| Question | Status | Introduced | File |
+|----------|--------|------------|------|
+${rows.join(`
+`)}
+`;
+}
+function promiseIndex(storyId, promises) {
+  const rows = promises.length === 0 ? ["| *No promises yet* | | | |"] : promises.map((promise) => `| ${promise.title} | ${promise.status} | ${promise.planted} | [${promise.id}](${promise.id}.md) |`);
+  return `${stringifyFrontmatter({ type: "promise-registry", story: storyId })}# Promises And Payoffs
+
+## Registry
+
+| Promise | Status | Planted | File |
+|---------|--------|---------|------|
+${rows.join(`
+`)}
+`;
+}
+function glossaryIndex(storyId, terms) {
+  const rows = terms.length === 0 ? ["| *No terms yet* | | |"] : terms.map((term) => `| ${term.term} | ${term.category} | [${term.id}](terms/${term.id}.md) |`);
+  return `${stringifyFrontmatter({ type: "glossary-registry", story: storyId })}# Glossary
+
+## Registry
+
+| Term | Category | File |
+|------|----------|------|
+${rows.join(`
+`)}
+`;
+}
+function buildProjectActions(project, validation, links) {
+  const actions = [];
+  if (validation.errors.length > 0) {
+    actions.push(action("P0", "Fix validation errors", `Run story validate . and repair ${validation.errors.length} schema or registry errors.`));
+  }
+  if (links.errors.length > 0) {
+    actions.push(action("P0", "Fix broken references", `Run story links . and repair ${links.errors.length} missing references or backlinks.`));
+  }
+  const staleChapters = [];
+  const chaptersWithoutScenes = [];
+  let nextNumber = 1;
+  for (const chapter of project.chapters) {
+    if (chapter.declaredWordCount !== chapter.wordCount) {
+      staleChapters.push(chapter);
+    }
+    let hasScene = false;
+    for (const scene of project.scenes) {
+      if (scene.chapter === chapter.id) {
+        hasScene = true;
+      }
+    }
+    if (!hasScene) {
+      chaptersWithoutScenes.push(chapter);
+    }
+    nextNumber = Math.max(nextNumber, chapter.number + 1);
+  }
+  if (staleChapters.length > 0) {
+    actions.push(action("P1", "Refresh word counts", `Run story wordcount . --write for ${staleChapters.length} chapters with stale counts.`));
+  }
+  if (chaptersWithoutScenes.length > 0) {
+    actions.push(action("P1", "Add scene records", `Create machine-readable scene files for ${chaptersWithoutScenes.length} chapters so continuity has durable state.`));
+  }
+  const openQuestions = [];
+  for (const question of project.questions) {
+    if (question.status === "open") {
+      openQuestions.push(question);
+    }
+  }
+  if (openQuestions.length > 0) {
+    actions.push(action("P2", "Track open questions", `${openQuestions.length} mysteries or continuity questions are still open.`));
+  }
+  const pendingPromises = [];
+  for (const promise of project.promises) {
+    if (promise.status === "planned" || promise.status === "planted") {
+      pendingPromises.push(promise);
+    }
+  }
+  if (pendingPromises.length > 0) {
+    actions.push(action("P2", "Review promises and payoffs", `${pendingPromises.length} setup/payoff promises need planting or payoff decisions.`));
+  }
+  const activeArcNames = [];
+  for (const arc of project.arcs) {
+    if (arc.status !== "resolved" && activeArcNames.length < 3) {
+      activeArcNames.push(arc.name);
+    }
+  }
+  const nextLabel = activeArcNames.length > 0 ? `advance ${activeArcNames.join(", ")}` : "establish the next story beat";
+  actions.push(action("P2", `Draft chapter ${nextNumber}`, `Use story add chapter "Chapter ${nextNumber}" --number ${nextNumber}, then outline scenes to ${nextLabel}.`));
+  if (project.characters.length === 0) {
+    actions.push(action("P2", "Create first character", 'Use story add character "Name" --role protagonist before drafting prose.'));
+  }
+  if (actions.length === 1 && validation.ok && links.ok && staleChapters.length === 0 && chaptersWithoutScenes.length === 0) {
+    actions.unshift(action("P3", "Project is mechanically healthy", "No deterministic maintenance issues are blocking the next writing pass."));
+  }
+  return actions;
+}
+function action(priority, title, detail) {
+  return { priority, title, detail };
+}
+function appendActionLines(lines, actions) {
+  if (actions.length === 0) {
+    lines.push("- No actions found");
+    return;
+  }
+  for (const item of actions) {
+    lines.push(`- [${item.priority}] ${item.title}: ${item.detail}`);
+  }
+}
+function buildEntity(project, kind, name, options) {
+  if (kind === "chapter") {
+    const number = Number(options.number ?? project.chapters.reduce((max, chapter) => Math.max(max, chapter.number), 0) + 1);
+    const id2 = `chapter-${String(number).padStart(2, "0")}`;
+    return entityResult(project, kind, id2, chapterFile(name, number, options));
+  }
+  if (kind === "scene") {
+    const chapter = options.chapter ?? project.chapters.at(-1)?.id ?? "chapter-01";
+    const scene = Number(options.scene ?? nextSceneNumber(project, chapter));
+    const id2 = `${chapter}-scene-${String(scene).padStart(2, "0")}`;
+    return entityResult(project, kind, id2, sceneFile(name, chapter, scene, options));
+  }
+  const id = kebabCase(name);
+  switch (kind) {
+    case "character":
+      return entityResult(project, kind, id, characterFile(name, options));
+    case "location":
+      return entityResult(project, kind, id, locationFile(name, options));
+    case "system":
+      return entityResult(project, kind, id, systemFile(name, options));
+    case "faction":
+      return entityResult(project, kind, id, factionFile(name, options));
+    case "artifact":
+      return entityResult(project, kind, id, artifactFile(name, options));
+    case "arc":
+      return entityResult(project, kind, id, arcFile(name, options));
+    case "question":
+      return entityResult(project, kind, id, questionFile(name, options));
+    case "promise":
+      return entityResult(project, kind, id, promiseFile(name, options));
+    case "term":
+      return entityResult(project, kind, id, termFile(name, options));
+    default:
+      entityConfig(kind);
+  }
+}
+function entityResult(project, kind, id, markdown) {
+  const config = entityConfig(kind);
+  return { id, markdown, file: path.join(project.root, config.dir, `${id}.md`) };
+}
+function entityConfig(kind) {
+  const configs = {
+    character: { dir: "characters", titleField: "name" },
+    location: { dir: path.join("worldbuilding", "locations"), titleField: "name" },
+    system: { dir: path.join("worldbuilding", "systems"), titleField: "name" },
+    faction: { dir: path.join("worldbuilding", "factions"), titleField: "name" },
+    artifact: { dir: path.join("worldbuilding", "artifacts"), titleField: "name" },
+    arc: { dir: path.join("plot", "arcs"), titleField: "name" },
+    chapter: { dir: "chapters", titleField: "title" },
+    scene: { dir: "scenes", titleField: "title" },
+    question: { dir: path.join("continuity", "questions"), titleField: "title" },
+    promise: { dir: path.join("continuity", "promises"), titleField: "title" },
+    term: { dir: path.join("glossary", "terms"), titleField: "term" }
+  };
+  const config = configs[kind];
+  if (!config) {
+    throw new Error(`Unsupported entity kind: ${kind}`);
+  }
+  return config;
+}
+function normalizeKind(kind) {
+  const normalized = String(kind ?? "").trim().toLowerCase().replace(/s$/, "");
+  if (normalized === "glossary" || normalized === "glossary-term") {
+    return "term";
+  }
+  return normalized;
+}
+function characterFile(name, options) {
+  return `${stringifyFrontmatter({
+    name,
+    role: options.role ?? "supporting",
+    status: options.status ?? "alive",
+    aliases: [],
+    relationships: [],
+    locations: normalizeList(options.locations ?? options.location, []),
+    tags: [],
+    arc: options.arc ?? ""
+  })}# ${name}
+
+## Appearance
+
+Add physical details that matter on the page.
+
+## Personality & Traits
+
+Add behavior, temperament, habits, and contradictions.
+
+## Backstory
+
+Add only story-relevant history.
+
+## Motivations & Goals
+
+External want, internal need, and the conflict between them.
+
+## Voice & Speech Patterns
+
+Add 2-3 example lines.
+
+## Character Arc
+
+- **Starting state:**
+- **Key turning points:**
+- **Ending state:**
+
+## Timeline
+
+| When | Event | Relevance |
+|------|-------|-----------|
+| | | |
+`;
+}
+function locationFile(name, options) {
+  return `${stringifyFrontmatter({
+    name,
+    type: options.type ?? "other",
+    region: options.region ?? "",
+    population: options.population ?? "",
+    "controlled-by": options["controlled-by"] ?? "",
+    "notable-characters": normalizeList(options.characters ?? options.character, []),
+    tags: [],
+    status: options.status ?? "unknown"
+  })}# ${name}
+
+## Description
+
+Add sensory details and first impressions.
+
+## History
+
+Add relevant history.
+
+## Culture & Customs
+
+Add social norms, rituals, or local patterns.
+
+## Notable Features
+
+Add landmarks or practical story elements.
+
+## Current State
+
+Add what is true at the current story moment.
+`;
+}
+function systemFile(name, options) {
+  return `${stringifyFrontmatter({
+    name,
+    type: options.type ?? "other",
+    prevalence: options.prevalence ?? "uncommon"
+  })}# ${name}
+
+## Overview
+
+Summarize the system and why it matters.
+
+## Rules & Limitations
+
+Define costs, limits, and exceptions.
+
+## History
+
+Add origin and changes over time.
+
+## Practitioners
+
+Add users, institutions, or gatekeepers.
+
+## Impact on Society
+
+Add consequences for daily life and conflict.
+`;
+}
+function factionFile(name, options) {
+  return `${stringifyFrontmatter({
+    name,
+    type: options.type ?? "other",
+    status: options.status ?? "active",
+    members: normalizeList(options.members ?? options.member ?? options.characters ?? options.character, []),
+    locations: normalizeList(options.locations ?? options.location, []),
+    tags: []
+  })}# ${name}
+
+## Purpose
+
+What the faction wants and why it exists.
+
+## Power Base
+
+Resources, influence, territory, leverage, or rituals.
+
+## Members
+
+Important members and their roles.
+
+## Conflicts
+
+Internal and external pressures.
+`;
+}
+function artifactFile(name, options) {
+  return `${stringifyFrontmatter({
+    name,
+    type: options.type ?? "object",
+    status: options.status ?? "active",
+    owner: options.owner ?? "",
+    location: options.location ?? "",
+    tags: []
+  })}# ${name}
+
+## Description
+
+What it is and how readers recognize it.
+
+## Function
+
+What it can do, cannot do, costs, and constraints.
+
+## History
+
+Where it came from and why it matters.
+
+## Current State
+
+Who has it, where it is, and what changed recently.
+`;
+}
+function arcFile(name, options) {
+  return `${stringifyFrontmatter({
+    name,
+    type: options.type ?? "subplot",
+    status: options.status ?? "planned",
+    characters: normalizeList(options.characters ?? options.character, []),
+    themes: normalizeList(options.themes ?? options.theme, []),
+    acts: normalizeList(options.acts ?? options.act, [])
+  })}# ${name}
+
+## Setup
+
+Initial state and inciting pressure.
+
+## Rising Action
+
+1. First escalation
+2. Second escalation
+3. Reversal or complication
+
+## Climax
+
+Decision point or highest tension.
+
+## Resolution
+
+What changes because of this arc.
+
+## Plot Points
+
+| # | Plot Point | Act | Chapter | Status | Notes |
+|---|------------|-----|---------|--------|-------|
+| 1 | | | | planned | |
+
+## Foreshadowing
+
+| Planted | Payoff | Chapter Planted | Chapter Payoff | Status |
+|---------|--------|-----------------|----------------|--------|
+| | | | | planned |
+`;
+}
+function chapterFile(title, number, options) {
+  return `${stringifyFrontmatter({
+    title,
+    number,
+    pov: options.pov ?? "",
+    locations: normalizeList(options.locations ?? options.location, []),
+    characters: normalizeList(options.characters ?? options.character, []),
+    "arcs-advanced": normalizeList(options.arcs ?? options.arc, []),
+    status: options.status ?? "outline",
+    "word-count": 0
+  })}# Chapter ${number}: ${title}
+
+## Outline
+
+1. Opening beat
+2. Escalation
+3. Turn or decision
+
+---
+
+## Chapter Text
+
+`;
+}
+function sceneFile(title, chapter, scene, options) {
+  return `${stringifyFrontmatter({
+    title,
+    chapter,
+    scene,
+    pov: options.pov ?? "",
+    location: options.location ?? "",
+    characters: normalizeList(options.characters ?? options.character, []),
+    "arcs-advanced": normalizeList(options.arcs ?? options.arc, []),
+    status: options.status ?? "outline",
+    "state-changes": []
+  })}# ${title}
+
+## Purpose
+
+What this scene changes.
+
+## Continuity Notes
+
+Character state, object state, knowledge changes, and timeline facts.
+`;
+}
+function questionFile(title, options) {
+  return `${stringifyFrontmatter({
+    title,
+    status: options.status ?? "open",
+    introduced: options.introduced ?? "",
+    resolved: options.resolved ?? "",
+    characters: normalizeList(options.characters ?? options.character, [])
+  })}# ${title}
+
+## Question
+
+What the reader or continuity tracker needs answered.
+
+## Evidence
+
+Known clues, constraints, and contradictions.
+
+## Resolution Plan
+
+How and when this should resolve.
+`;
+}
+function promiseFile(title, options) {
+  return `${stringifyFrontmatter({
+    title,
+    status: options.status ?? "planned",
+    planted: options.planted ?? "",
+    payoff: options.payoff ?? "",
+    arcs: normalizeList(options.arcs ?? options.arc, []),
+    characters: normalizeList(options.characters ?? options.character, [])
+  })}# ${title}
+
+## Setup
+
+What is promised to the reader.
+
+## Payoff
+
+How the story should answer the setup.
+
+## Tracking Notes
+
+Keep planted and payoff chapters current.
+`;
+}
+function termFile(term, options) {
+  return `${stringifyFrontmatter({
+    term,
+    category: options.category ?? "term",
+    aliases: normalizeList(options.aliases ?? options.alias, [])
+  })}# ${term}
+
+## Definition
+
+Define the term in story context.
+
+## Usage Notes
+
+How agents should use this term consistently.
+`;
+}
+function nextSceneNumber(project, chapter) {
+  return project.scenes.filter((scene) => scene.chapter === chapter).reduce((max, scene) => Math.max(max, scene.scene), 0) + 1;
+}
+function ensureDirectory(directory, changed) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+    changed.push(directory);
+  }
+}
+function ensureFile(filePath, contents, changed) {
+  if (!fs.existsSync(filePath)) {
+    writeFile(filePath, contents);
+    changed.push(filePath);
+  }
+}
+function replaceEntityReferences(root, oldId, newId) {
+  for (const file of markdownFiles(root)) {
+    const text = fs.readFileSync(file, "utf8");
+    const updated = text.replaceAll(oldId, newId);
+    if (updated !== text) {
+      fs.writeFileSync(file, updated, "utf8");
+    }
+  }
+}
+function removeEntityReferences(root, id) {
+  for (const file of markdownFiles(root)) {
+    if (!fs.existsSync(file)) {
+      continue;
+    }
+    const markdown = readMarkdown(file);
+    const data = removeReferenceFromData(markdown.data, id);
+    writeFile(file, replaceFrontmatter(markdown.rawMarkdown, data));
+  }
+}
+function applyEntityBacklinks(root, kind, id, data) {
+  if (kind === "location") {
+    for (const characterId of asArray(data["notable-characters"])) {
+      addFrontmatterListValue(path.join(root, "characters", `${characterId}.md`), "locations", id);
+    }
+  }
+  if (kind === "character") {
+    for (const locationId of asArray(data.locations)) {
+      addFrontmatterListValue(path.join(root, "worldbuilding", "locations", `${locationId}.md`), "notable-characters", id);
+    }
+  }
+}
+function addFrontmatterListValue(filePath, field, value) {
+  if (!fs.existsSync(filePath) || !value) {
+    return;
+  }
+  const markdown = readMarkdown(filePath);
+  const list = asArray(markdown.data[field]);
+  if (!list.includes(value)) {
+    writeFile(filePath, replaceFrontmatter(markdown.rawMarkdown, {
+      ...markdown.data,
+      [field]: list.concat(value)
+    }));
+  }
+}
+function removeReferenceFromData(data, id) {
+  const next = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (Array.isArray(value)) {
+      const items = [];
+      for (const item of value) {
+        const objectHasReference = item && typeof item === "object" && Object.values(item).includes(id);
+        if (item !== id && !objectHasReference) {
+          items.push(item && typeof item === "object" && !Array.isArray(item) ? removeReferenceFromData(item, id) : item);
+        }
+      }
+      next[key] = items;
+    } else {
+      next[key] = value === id ? "" : value;
+    }
+  }
+  return next;
+}
+function markdownFiles(root) {
+  const files = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const fullPath = path.join(root, entry.name);
+    if (entry.isDirectory() && entry.name !== "dist" && !entry.name.startsWith(".")) {
+      files.push(...markdownFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith(".md")) {
+      files.push(fullPath);
+    }
+  }
+  return files.sort();
+}
+function manuscriptParts(project) {
+  if (project.chapters.length === 0) {
+    throw new Error("No chapters found to export");
+  }
+  const chapters = [];
+  for (const chapter of project.chapters) {
+    const markdown = readMarkdown(chapter.file);
+    chapters.push({
+      number: chapter.number,
+      title: chapter.title,
+      body: chapterProse(markdown.body).trim()
+    });
+  }
+  return {
+    title: project.story.data.title,
+    chapters
+  };
+}
+function writeEpub(outFile, storyId, manuscript) {
+  const chapterEntries = [];
+  const chapterItems = [];
+  const spineItems = [];
+  for (const chapter of manuscript.chapters) {
+    const id = `chapter-${String(chapter.number).padStart(2, "0")}`;
+    chapterEntries.push({
+      name: `OEBPS/${id}.xhtml`,
+      content: chapterXhtml(chapter)
+    });
+    chapterItems.push(`<item id="${id}" href="${id}.xhtml" media-type="application/xhtml+xml"/>`);
+    spineItems.push(`<itemref idref="${id}"/>`);
+  }
+  writeZip(outFile, [
+    { name: "mimetype", content: "application/epub+zip" },
+    { name: "META-INF/container.xml", content: `<?xml version="1.0" encoding="UTF-8"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>` },
+    { name: "OEBPS/content.opf", content: `<?xml version="1.0" encoding="UTF-8"?><package version="3.0" unique-identifier="book-id" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="book-id">${xmlEscape(storyId)}</dc:identifier><dc:title>${xmlEscape(manuscript.title)}</dc:title><dc:language>en</dc:language></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>${chapterItems.join("")}</manifest><spine>${spineItems.join("")}</spine></package>` },
+    { name: "OEBPS/nav.xhtml", content: navXhtml(manuscript) },
+    ...chapterEntries
+  ]);
+}
+function navXhtml(manuscript) {
+  const links = [];
+  for (const chapter of manuscript.chapters) {
+    links.push(`<li><a href="chapter-${String(chapter.number).padStart(2, "0")}.xhtml">Chapter ${chapter.number}: ${xmlEscape(chapter.title)}</a></li>`);
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${xmlEscape(manuscript.title)}</title></head><body><nav epub:type="toc" xmlns:epub="http://www.idpf.org/2007/ops"><ol>${links.join("")}</ol></nav></body></html>`;
+}
+function chapterXhtml(chapter) {
+  const paragraphs = [];
+  for (const paragraph of markdownParagraphs(chapter.body)) {
+    paragraphs.push(`<p>${xmlEscape(paragraph)}</p>`);
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${xmlEscape(chapter.title)}</title></head><body><h1>Chapter ${chapter.number}: ${xmlEscape(chapter.title)}</h1>${paragraphs.join("")}</body></html>`;
+}
+function writeDocx(outFile, manuscript) {
+  const bodyParts = [paragraphXml(manuscript.title, "Title")];
+  for (const chapter of manuscript.chapters) {
+    bodyParts.push(paragraphXml(`Chapter ${chapter.number}: ${chapter.title}`, "Heading1"));
+    for (const paragraph of markdownParagraphs(chapter.body)) {
+      bodyParts.push(paragraphXml(paragraph));
+    }
+  }
+  const body = bodyParts.join("");
+  writeZip(outFile, [
+    { name: "[Content_Types].xml", content: `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>` },
+    { name: "_rels/.rels", content: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>` },
+    { name: "word/document.xml", content: `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}<w:sectPr/></w:body></w:document>` }
+  ]);
+}
+function paragraphXml(text, style = "") {
+  const styleXml = style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : "";
+  return `<w:p>${styleXml}<w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`;
+}
+function markdownParagraphs(markdown) {
+  const paragraphs = [];
+  for (const paragraph of markdown.replace(/^#+\s+/gm, "").split(/\n{2,}/)) {
+    const trimmed = paragraph.replace(/\s+/g, " ").trim();
+    if (trimmed) {
+      paragraphs.push(trimmed);
+    }
+  }
+  return paragraphs;
+}
+function writeZip(outFile, entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const content = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content, "utf8");
+    const crc = crc32(content);
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(67324752, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0, 6);
+    localHeader.writeUInt16LE(0, 8);
+    localHeader.writeUInt16LE(0, 10);
+    localHeader.writeUInt16LE(0, 12);
+    localHeader.writeUInt32LE(crc, 14);
+    localHeader.writeUInt32LE(content.length, 18);
+    localHeader.writeUInt32LE(content.length, 22);
+    localHeader.writeUInt16LE(name.length, 26);
+    localHeader.writeUInt16LE(0, 28);
+    localParts.push(localHeader, name, content);
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(33639248, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0, 8);
+    centralHeader.writeUInt16LE(0, 10);
+    centralHeader.writeUInt16LE(0, 12);
+    centralHeader.writeUInt16LE(0, 14);
+    centralHeader.writeUInt32LE(crc, 16);
+    centralHeader.writeUInt32LE(content.length, 20);
+    centralHeader.writeUInt32LE(content.length, 24);
+    centralHeader.writeUInt16LE(name.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(offset, 42);
+    centralParts.push(centralHeader, name);
+    offset += localHeader.length + name.length + content.length;
+  }
+  let centralSize = 0;
+  for (const part of centralParts) {
+    centralSize += part.length;
+  }
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(101010256, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+  writeFile(outFile, Buffer.concat(localParts.concat(centralParts, end)));
+}
+function crc32(buffer) {
+  let crc = 4294967295;
+  for (const byte of buffer) {
+    crc = CRC_TABLE[(crc ^ byte) & 255] ^ crc >>> 8;
+  }
+  return (crc ^ 4294967295) >>> 0;
+}
+var CRC_TABLE = [];
+for (let index = 0;index < 256; index += 1) {
+  let value = index;
+  for (let bit = 0;bit < 8; bit += 1) {
+    value = value & 1 ? 3988292384 ^ value >>> 1 : value >>> 1;
+  }
+  CRC_TABLE.push(value >>> 0);
+}
+function xmlEscape(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 function readEntityFiles(root, relativeDir, mapEntity) {
   const directory = path.join(root, relativeDir);
   if (!fs.existsSync(directory)) {
@@ -740,7 +1884,16 @@ function asArray(value) {
   return Array.isArray(value) ? value : [];
 }
 function normalizeList(value, fallback) {
-  const list = asArray(value).flatMap((item) => String(item).split(",")).map((item) => item.trim()).filter(Boolean);
+  const values = value === undefined || value === true ? [] : Array.isArray(value) ? value : [value];
+  const list = [];
+  for (const valueItem of values) {
+    for (const part of String(valueItem).split(",")) {
+      const trimmed = part.trim();
+      if (trimmed) {
+        list.push(trimmed);
+      }
+    }
+  }
   return list.length > 0 ? list : fallback;
 }
 function normalizeBuildFormat(value) {
@@ -748,7 +1901,10 @@ function normalizeBuildFormat(value) {
   if (format === "markdown" || format === "md") {
     return "markdown";
   }
-  throw new Error(`Unsupported build format: ${value}. Supported formats: markdown`);
+  if (format === "epub" || format === "docx") {
+    return format;
+  }
+  throw new Error(`Unsupported build format: ${value}. Supported formats: markdown, epub, docx`);
 }
 function validateStoryFrontmatter(project, errors) {
   const data = project.story.data;
@@ -826,6 +1982,38 @@ function validateSystems(project, errors) {
     }
   }
 }
+function validateFactions(project, errors) {
+  for (const faction of project.factions) {
+    const label = relative(project, faction.file);
+    const data = readMarkdown(faction.file).data;
+    validateEntityId(faction.id, label, errors);
+    requireFields(data, ["name", "type", "status"], label, errors);
+    requireScalar(data, "name", label, errors);
+    requireScalar(data, "type", label, errors);
+    requireScalar(data, "status", label, errors);
+    validateEnum(data, "type", FACTION_TYPES, label, errors);
+    validateEnum(data, "status", FACTION_STATUSES, label, errors);
+    validateStringArray(data, "members", label, errors);
+    validateStringArray(data, "locations", label, errors);
+    validateStringArray(data, "tags", label, errors);
+  }
+}
+function validateArtifacts(project, errors) {
+  for (const artifact of project.artifacts) {
+    const label = relative(project, artifact.file);
+    const data = readMarkdown(artifact.file).data;
+    validateEntityId(artifact.id, label, errors);
+    requireFields(data, ["name", "type", "status"], label, errors);
+    requireScalar(data, "name", label, errors);
+    requireScalar(data, "type", label, errors);
+    requireScalar(data, "status", label, errors);
+    requireScalar(data, "owner", label, errors);
+    requireScalar(data, "location", label, errors);
+    validateEnum(data, "type", ARTIFACT_TYPES, label, errors);
+    validateEnum(data, "status", ARTIFACT_STATUSES, label, errors);
+    validateStringArray(data, "tags", label, errors);
+  }
+}
 function validateArcs(project, errors) {
   for (const arc of project.arcs) {
     const label = relative(project, arc.file);
@@ -881,6 +2069,89 @@ function validateChapters(project, errors) {
     }
   }
 }
+function validateScenes(project, errors) {
+  for (const scene of project.scenes) {
+    const label = relative(project, scene.file);
+    const data = readMarkdown(scene.file).data;
+    validateEntityId(scene.id, label, errors);
+    requireFields(data, ["title", "chapter", "scene", "status"], label, errors);
+    requireScalar(data, "title", label, errors);
+    requireScalar(data, "chapter", label, errors);
+    requireScalar(data, "status", label, errors);
+    requireInteger(data, "scene", label, errors);
+    validateEnum(data, "status", SCENE_STATUSES, label, errors);
+    validateStringArray(data, "characters", label, errors);
+    validateStringArray(data, "arcs-advanced", label, errors);
+    validateObjectArray(data, "state-changes", label, errors);
+    if (data.pov !== undefined) {
+      requireScalar(data, "pov", label, errors);
+    }
+    if (data.location !== undefined) {
+      requireScalar(data, "location", label, errors);
+    }
+    if (Number.isInteger(data.scene) && data.scene <= 0) {
+      errors.push(`${label} scene must be greater than 0`);
+    }
+  }
+}
+function validateContinuityState(project, errors) {
+  const label = path.join("continuity", "state.md");
+  const data = project.continuity.data;
+  requireFields(data, ["type", "story", "current-chapter"], label, errors);
+  requireScalar(data, "type", label, errors);
+  requireScalar(data, "story", label, errors);
+  requireInteger(data, "current-chapter", label, errors);
+  validateObjectArray(data, "character-state", label, errors);
+  validateObjectArray(data, "object-state", label, errors);
+  validateObjectArray(data, "knowledge-state", label, errors);
+  if (data.type !== undefined && data.type !== "continuity-state") {
+    errors.push(`${label} type must be continuity-state`);
+  }
+  if (data.story !== undefined && data.story !== project.storyId) {
+    errors.push(`${label} story must be ${project.storyId}`);
+  }
+}
+function validateQuestions(project, errors) {
+  for (const question of project.questions) {
+    const label = relative(project, question.file);
+    const data = readMarkdown(question.file).data;
+    validateEntityId(question.id, label, errors);
+    requireFields(data, ["title", "status"], label, errors);
+    requireScalar(data, "title", label, errors);
+    requireScalar(data, "status", label, errors);
+    requireScalar(data, "introduced", label, errors);
+    requireScalar(data, "resolved", label, errors);
+    validateEnum(data, "status", QUESTION_STATUSES, label, errors);
+    validateStringArray(data, "characters", label, errors);
+  }
+}
+function validatePromises(project, errors) {
+  for (const promise of project.promises) {
+    const label = relative(project, promise.file);
+    const data = readMarkdown(promise.file).data;
+    validateEntityId(promise.id, label, errors);
+    requireFields(data, ["title", "status"], label, errors);
+    requireScalar(data, "title", label, errors);
+    requireScalar(data, "status", label, errors);
+    requireScalar(data, "planted", label, errors);
+    requireScalar(data, "payoff", label, errors);
+    validateEnum(data, "status", PROMISE_STATUSES, label, errors);
+    validateStringArray(data, "arcs", label, errors);
+    validateStringArray(data, "characters", label, errors);
+  }
+}
+function validateGlossaryTerms(project, errors) {
+  for (const term of project.glossaryTerms) {
+    const label = relative(project, term.file);
+    const data = readMarkdown(term.file).data;
+    validateEntityId(term.id, label, errors);
+    requireFields(data, ["term", "category"], label, errors);
+    requireScalar(data, "term", label, errors);
+    requireScalar(data, "category", label, errors);
+    validateEnum(data, "category", TERM_CATEGORIES, label, errors);
+    validateStringArray(data, "aliases", label, errors);
+  }
+}
 function validateEntityId(id, label, errors) {
   if (id !== kebabCase(id)) {
     errors.push(`${label} filename id must be kebab-case`);
@@ -912,6 +2183,20 @@ function validateStringArray(data, field, label, errors) {
   for (const item of data[field]) {
     if (typeof item !== "string" || item.trim() === "") {
       errors.push(`${label} frontmatter field ${field} must contain only non-empty strings`);
+    }
+  }
+}
+function validateObjectArray(data, field, label, errors) {
+  if (data[field] === undefined) {
+    return;
+  }
+  if (!Array.isArray(data[field])) {
+    errors.push(`${label} frontmatter field ${field} must be a list`);
+    return;
+  }
+  for (const item of data[field]) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      errors.push(`${label} frontmatter field ${field} must contain objects`);
     }
   }
 }
@@ -978,6 +2263,14 @@ Commands:
   wordcount [path]   Count chapter prose words
   links [path]       Check cross-reference targets and backlinks
   report [path]      Summarize project inventory, progress, and checks
+  next [path]        Recommend the next writing and maintenance actions
+  doctor [path]      Show health checks plus actionable repair steps
+  migrate [path]     Upgrade a project to the current schema
+  add <kind> <name>  Create an entity file and reindex registries
+  rename <kind> <id> <name>
+                    Rename an entity and update id references
+  remove <kind> <id>
+                    Remove an entity and scrub id references
   export [path]      Combine chapters into a manuscript markdown file
   build [path]       Build a disposable book artifact in dist/
 
@@ -993,8 +2286,27 @@ Options:
   --synopsis <text>         Starter synopsis for init
   --force                   Allow init to overwrite starter files
   --write                   Update chapter word-count frontmatter
+  --path <path>             Target story root for add/rename/remove
   --out <file>              Output path for export/build
-  --format <name>           Output format for build (markdown only)
+  --format <name>           Output format for build (markdown, epub, docx)
+  --actionable              Include next actions in report
+  --number <n>              Chapter number for add chapter
+  --chapter <id>            Chapter id for add scene or continuity records
+  --scene <n>               Scene number for add scene
+  --type <name>             Entity type for add
+  --role <name>             Character role for add character
+  --status <name>           Entity status for add
+  --location <id>           Location reference for add
+  --character <id>          Character reference for add; repeatable
+  --member <id>             Faction member reference for add faction; repeatable
+  --owner <id>              Owner reference for add artifact
+  --arc <id>                Arc reference for add; repeatable
+  --introduced <id>         Chapter id for add question
+  --resolved <id>           Chapter id for add question
+  --planted <id>            Chapter id for add promise
+  --payoff <id>             Chapter id for add promise
+  --category <name>         Category for add term
+  --alias <name>            Alias for add term; repeatable
   -h, --help                Show this help
 `;
 function runCli(argv, io) {
@@ -1033,7 +2345,53 @@ function runCli(argv, io) {
       return reportResult(io, validateLinks(root), "Links are valid");
     }
     if (command === "report") {
-      io.stdout.write(formatProjectReport(projectReport(root)));
+      io.stdout.write(formatProjectReport(projectReport(root), { actionable: Boolean(parsed.options.actionable) }));
+      return 0;
+    }
+    if (command === "next") {
+      io.stdout.write(formatActionReport(projectActions(root)));
+      return 0;
+    }
+    if (command === "doctor") {
+      io.stdout.write(formatDoctorReport(projectActions(root)));
+      return 0;
+    }
+    if (command === "migrate") {
+      const result = migrateProject(root);
+      io.stdout.write(result.changed.length === 0 ? `Project already uses the current schema
+` : `Migrated project to current schema: ${result.changed.length} changes
+`);
+      return 0;
+    }
+    if (command === "add") {
+      const result = createEntity(targetRoot(cwd, parsed), {
+        ...parsed.options,
+        kind: parsed.positionals[1],
+        name: parsed.positionals.slice(2).join(" ")
+      });
+      io.stdout.write(`Created ${result.kind} ${result.id}: ${result.file}
+`);
+      return 0;
+    }
+    if (command === "rename") {
+      const result = renameEntity(targetRoot(cwd, parsed), {
+        ...parsed.options,
+        kind: parsed.positionals[1],
+        id: parsed.positionals[2],
+        name: parsed.positionals.slice(3).join(" ")
+      });
+      io.stdout.write(`Renamed ${result.kind} ${result.oldId} to ${result.id}: ${result.file}
+`);
+      return 0;
+    }
+    if (command === "remove") {
+      const result = removeEntity(targetRoot(cwd, parsed), {
+        ...parsed.options,
+        kind: parsed.positionals[1],
+        id: parsed.positionals[2]
+      });
+      io.stdout.write(`Removed ${result.kind} ${result.id}: ${result.file}
+`);
       return 0;
     }
     if (command === "reindex") {
@@ -1064,7 +2422,7 @@ function runCli(argv, io) {
         out: parsed.options.out,
         format: parsed.options.format
       });
-      io.stdout.write(`Built ${result.chapters} chapters to ${result.outFile}
+      io.stdout.write(`Built ${result.chapters} chapters as ${result.format} to ${result.outFile}
 `);
       return 0;
     }
@@ -1110,6 +2468,9 @@ function parseArgs(argv) {
 }
 function collectThemes(options) {
   return [].concat(options.theme ?? []).concat(options.themes ?? []).filter((value) => value !== undefined && value !== true);
+}
+function targetRoot(cwd, parsed) {
+  return path2.resolve(cwd, parsed.options.path ?? ".");
 }
 function reportResult(io, result, successMessage) {
   const output = result.ok ? io.stdout : io.stderr;

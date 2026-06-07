@@ -33,6 +33,9 @@ Read these files to understand the current story state:
 - `chapters/_index.md` - what's been written, current word count
 - `plot/_index.md` - arc status, what needs to happen next
 - `plot/timeline.md` - chronological position
+- `scenes/_index.md` - scene state already recorded
+- `continuity/state.md` - character, object, and knowledge state
+- `continuity/questions/_index.md` and `continuity/promises/_index.md` - unresolved mysteries and setup/payoff commitments
 
 If this isn't the first chapter, also read:
 - The previous chapter file - for continuity (ending state, cliffhangers, emotional tone)
@@ -54,6 +57,7 @@ Create a beat-by-beat outline listing:
 - POV character and location for each beat
 - Which arc plot points are advanced
 - Any foreshadowing to plant or pay off
+- Any machine-readable state changes the scene should record
 
 Load the POV character's file for voice reference. Load relevant location files for setting details.
 
@@ -73,6 +77,8 @@ With the approved outline, write the full prose:
 
 Save to `chapters/chapter-{NN}.md` with appropriate frontmatter.
 
+Create or update a matching scene file in `scenes/chapter-{NN}-scene-{NN}.md` for each scene. Scene frontmatter should include `chapter`, `scene`, `pov`, `location`, `characters`, `arcs-advanced`, `status`, and `state-changes` so continuity survives beyond prose.
+
 Write chapter prose directly into the chapter markdown file. Do not stage prose in project-local build scripts, generator scripts, or bulk writer scripts (for example `build-*.js`) to emit chapters. If a temporary helper is truly unavoidable for mechanical file operations, keep it outside the story project and remove it before finishing.
 
 ### 5. Post-Write Updates
@@ -82,14 +88,18 @@ After the chapter is written:
 1. **Update `chapters/_index.md`** - add chapter to registry, update total word count
 2. **Update `plot/timeline.md`** - add events from this chapter in chronological order
 3. **Update arc files** - mark advanced plot points with chapter reference
-4. **Update foreshadowing** - mark any items as `planted` or `paid-off` with chapter reference
-5. **Note character changes** - if a character's status changed (injury, revelation, relationship shift), flag for the user to update the character file
-6. **Run CLI maintenance when available:**
+4. **Update scene records** - make sure every scene has a corresponding `scenes/` file
+5. **Update continuity** - carry forward character state, object ownership, knowledge, open questions, and promises/payoffs
+6. **Update foreshadowing** - mark any items as `planted` or `paid-off` with chapter reference
+7. **Note character changes** - if a character's status changed (injury, revelation, relationship shift), flag for the user to update the character file
+8. **Run CLI maintenance when available:**
 
 ```shell
 story wordcount . --write
+story reindex .
 story links .
 story validate .
+story next .
 ```
 
 Present a summary of all updates made.
@@ -109,4 +119,5 @@ Use the Story CLI when it is available. If `story` is not installed but the `sto
 ## Reference Files
 
 - **`references/chapter-template.md`** - Frontmatter and structure template for chapter files
+- **`references/scene-template.md`** - Machine-readable continuity template for scenes
 - **`references/writing-guidelines.md`** - Prose craft guidance: show-don't-tell, POV, dialogue, pacing, scene structure, continuity

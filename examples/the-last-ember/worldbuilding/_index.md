@@ -13,7 +13,7 @@ A mountainous, forested region where ember magic once thrived. Now in decline un
 
 | Name | Type | Region | File |
 |------|------|--------|------|
-| The Ashen Citadel | City/Fortress | Northern Reach | [ashen-citadel](locations/ashen-citadel.md) |
+| The Ashen Citadel | City | Northern Reach | [ashen-citadel](locations/ashen-citadel.md) |
 | The Whispering Vale | Wilderness | Northern Reach | [whispering-vale](locations/whispering-vale.md) |
 
 ## Systems
@@ -21,3 +21,15 @@ A mountainous, forested region where ember magic once thrived. Now in decline un
 | Name | Type | File |
 |------|------|------|
 | Ember Magic | Magic | [ember-magic](systems/ember-magic.md) |
+
+## Factions
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+| *No factions yet* | | | |
+
+## Artifacts
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+| *No artifacts yet* | | | |

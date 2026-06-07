@@ -2,11 +2,18 @@ import path from "node:path";
 import {
   buildBook,
   computeWordCounts,
+  createEntity,
   createStoryProject,
   exportManuscript,
+  formatActionReport,
+  formatDoctorReport,
   formatProjectReport,
+  migrateProject,
   projectReport,
+  projectActions,
   reindexProject,
+  removeEntity,
+  renameEntity,
   validateLinks,
   validateProject
 } from "./story.js";
@@ -20,6 +27,14 @@ Commands:
   wordcount [path]   Count chapter prose words
   links [path]       Check cross-reference targets and backlinks
   report [path]      Summarize project inventory, progress, and checks
+  next [path]        Recommend the next writing and maintenance actions
+  doctor [path]      Show health checks plus actionable repair steps
+  migrate [path]     Upgrade a project to the current schema
+  add <kind> <name>  Create an entity file and reindex registries
+  rename <kind> <id> <name>
+                    Rename an entity and update id references
+  remove <kind> <id>
+                    Remove an entity and scrub id references
   export [path]      Combine chapters into a manuscript markdown file
   build [path]       Build a disposable book artifact in dist/
 
@@ -35,8 +50,27 @@ Options:
   --synopsis <text>         Starter synopsis for init
   --force                   Allow init to overwrite starter files
   --write                   Update chapter word-count frontmatter
+  --path <path>             Target story root for add/rename/remove
   --out <file>              Output path for export/build
-  --format <name>           Output format for build (markdown only)
+  --format <name>           Output format for build (markdown, epub, docx)
+  --actionable              Include next actions in report
+  --number <n>              Chapter number for add chapter
+  --chapter <id>            Chapter id for add scene or continuity records
+  --scene <n>               Scene number for add scene
+  --type <name>             Entity type for add
+  --role <name>             Character role for add character
+  --status <name>           Entity status for add
+  --location <id>           Location reference for add
+  --character <id>          Character reference for add; repeatable
+  --member <id>             Faction member reference for add faction; repeatable
+  --owner <id>              Owner reference for add artifact
+  --arc <id>                Arc reference for add; repeatable
+  --introduced <id>         Chapter id for add question
+  --resolved <id>           Chapter id for add question
+  --planted <id>            Chapter id for add promise
+  --payoff <id>             Chapter id for add promise
+  --category <name>         Category for add term
+  --alias <name>            Alias for add term; repeatable
   -h, --help                Show this help
 `;
 
@@ -80,7 +114,56 @@ export function runCli(argv, io) {
     }
 
     if (command === "report") {
-      io.stdout.write(formatProjectReport(projectReport(root)));
+      io.stdout.write(formatProjectReport(projectReport(root), { actionable: Boolean(parsed.options.actionable) }));
+      return 0;
+    }
+
+    if (command === "next") {
+      io.stdout.write(formatActionReport(projectActions(root)));
+      return 0;
+    }
+
+    if (command === "doctor") {
+      io.stdout.write(formatDoctorReport(projectActions(root)));
+      return 0;
+    }
+
+    if (command === "migrate") {
+      const result = migrateProject(root);
+      io.stdout.write(result.changed.length === 0
+        ? "Project already uses the current schema\n"
+        : `Migrated project to current schema: ${result.changed.length} changes\n`);
+      return 0;
+    }
+
+    if (command === "add") {
+      const result = createEntity(targetRoot(cwd, parsed), {
+        ...parsed.options,
+        kind: parsed.positionals[1],
+        name: parsed.positionals.slice(2).join(" ")
+      });
+      io.stdout.write(`Created ${result.kind} ${result.id}: ${result.file}\n`);
+      return 0;
+    }
+
+    if (command === "rename") {
+      const result = renameEntity(targetRoot(cwd, parsed), {
+        ...parsed.options,
+        kind: parsed.positionals[1],
+        id: parsed.positionals[2],
+        name: parsed.positionals.slice(3).join(" ")
+      });
+      io.stdout.write(`Renamed ${result.kind} ${result.oldId} to ${result.id}: ${result.file}\n`);
+      return 0;
+    }
+
+    if (command === "remove") {
+      const result = removeEntity(targetRoot(cwd, parsed), {
+        ...parsed.options,
+        kind: parsed.positionals[1],
+        id: parsed.positionals[2]
+      });
+      io.stdout.write(`Removed ${result.kind} ${result.id}: ${result.file}\n`);
       return 0;
     }
 
@@ -112,7 +195,7 @@ export function runCli(argv, io) {
         out: parsed.options.out,
         format: parsed.options.format
       });
-      io.stdout.write(`Built ${result.chapters} chapters to ${result.outFile}\n`);
+      io.stdout.write(`Built ${result.chapters} chapters as ${result.format} to ${result.outFile}\n`);
       return 0;
     }
 
@@ -166,6 +249,10 @@ function collectThemes(options) {
     .concat(options.theme ?? [])
     .concat(options.themes ?? [])
     .filter((value) => value !== undefined && value !== true);
+}
+
+function targetRoot(cwd, parsed) {
+  return path.resolve(cwd, parsed.options.path ?? ".");
 }
 
 function reportResult(io, result, successMessage) {

@@ -1,6 +1,6 @@
 ---
-title: "The Last Ember"
-schema-version: 1
+title: The Last Ember
+schema-version: 2
 genre: fantasy
 sub-genre: epic
 setting-era: medieval
@@ -12,6 +12,7 @@ themes:
 pov: third-person-limited
 tense: past
 ---
+
 
 # The Last Ember
 
