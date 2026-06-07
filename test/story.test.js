@@ -219,6 +219,94 @@ word-count: 0
     expect(reindexProject(second.root).changed).toEqual([]);
   });
 
+  test("refuses to overwrite maintenance outputs through symlinks", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Symlink Trap", force: false });
+    const outside = path.join(cwd, "outside.md");
+    fs.writeFileSync(outside, "outside sentinel", "utf8");
+
+    const chapterIndex = path.join(created.root, "chapters", "_index.md");
+    fs.rmSync(chapterIndex);
+    fs.symlinkSync(outside, chapterIndex);
+
+    expect(() => reindexProject(created.root)).toThrow("Refusing to write through symlink");
+    expect(fs.readFileSync(outside, "utf8")).toBe("outside sentinel");
+  });
+
+  test("refuses to write project files through symlinked directories", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Symlink Directory", force: false });
+    const outsideChapters = path.join(cwd, "outside-chapters");
+    fs.mkdirSync(outsideChapters);
+
+    fs.rmSync(path.join(created.root, "chapters"), { recursive: true, force: true });
+    fs.symlinkSync(outsideChapters, path.join(created.root, "chapters"), "dir");
+
+    expect(() => createEntity(created.root, { kind: "chapter", name: "Escaped", number: 1 })).toThrow("symlinked project directory");
+    expect(fs.existsSync(path.join(outsideChapters, "chapter-01.md"))).toBe(false);
+  });
+
+  test("refuses unsafe project directories reached during scans", () => {
+    const cwd = makeTempDir();
+    const fileDirectory = createStoryProject({ cwd, title: "File Directory", force: false });
+    fs.rmSync(path.join(fileDirectory.root, "characters"), { recursive: true, force: true });
+    fs.writeFileSync(path.join(fileDirectory.root, "characters"), "not a directory", "utf8");
+
+    expect(() => scanProject(fileDirectory.root)).toThrow("Project path is not a directory");
+
+    const escapedDirectory = createStoryProject({ cwd, title: "Escaped Directory", force: false });
+    const outsideWorld = path.join(cwd, "outside-world");
+    fs.mkdirSync(path.join(outsideWorld, "locations"), { recursive: true });
+    fs.rmSync(path.join(escapedDirectory.root, "worldbuilding"), { recursive: true, force: true });
+    fs.symlinkSync(outsideWorld, path.join(escapedDirectory.root, "worldbuilding"), "dir");
+
+    expect(() => scanProject(escapedDirectory.root)).toThrow("project directory outside root");
+  });
+
+  test("rejects traversal ids before rename, remove, and scene creation", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Traversal IDs", force: false });
+    const victim = path.join(cwd, "victim.md");
+    fs.writeFileSync(victim, "victim sentinel", "utf8");
+
+    expect(() => removeEntity(created.root, { kind: "character", id: "../../victim" })).toThrow("must be a kebab-case id");
+    expect(() => renameEntity(created.root, { kind: "character", id: "../../victim", name: "Moved Victim" })).toThrow("must be a kebab-case id");
+    expect(() => createEntity(created.root, { kind: "scene", name: "Escaped Scene", chapter: "../../victim" })).toThrow("chapter id must be a kebab-case id");
+    expect(fs.readFileSync(victim, "utf8")).toBe("victim sentinel");
+    expect(fs.existsSync(path.join(cwd, "victim-scene-01.md"))).toBe(false);
+  });
+
+  test("rejects relative export outputs outside the project root", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Output Traversal", force: false });
+    addStoryEntities(created.root);
+
+    expect(() => exportManuscript(created.root, { out: "../outside.md" })).toThrow("outside project root");
+    expect(fs.existsSync(path.join(cwd, "outside.md"))).toBe(false);
+  });
+
+  test("rejects outputs through symlinked parent directories", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Output Symlink", force: false });
+    addStoryEntities(created.root);
+    const outsideDist = path.join(cwd, "outside-dist");
+    fs.mkdirSync(outsideDist);
+    fs.symlinkSync(outsideDist, path.join(created.root, "dist"), "dir");
+
+    expect(() => buildBook(created.root)).toThrow("project path outside root");
+    expect(fs.existsSync(path.join(outsideDist, "output-symlink.md"))).toBe(false);
+  });
+
+  test("recreates missing registry files without leaving the project root", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Missing Registry", force: false });
+    const registry = path.join(created.root, "characters", "_index.md");
+    fs.rmSync(registry);
+
+    expect(reindexProject(created.root).changed).toContain(registry);
+    expect(fs.readFileSync(registry, "utf8")).toContain("type: character-registry");
+  });
+
   test("reports missing structure, frontmatter fields, registry warnings, word-count warnings, and link errors", () => {
     const cwd = makeTempDir();
     expect(validateProject(cwd).errors).toContain("Missing required path: story.md");
