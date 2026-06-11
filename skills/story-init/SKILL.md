@@ -113,13 +113,13 @@ story: {story-title-kebab}
 |------|------|--------|------|
 | *No characters yet* | | | |
 
-## Family Trees
-
-*No family trees defined yet.*
-
 ## Relationship Map
 
 *No relationships defined yet.*
+
+## Family Trees
+
+*No family trees defined yet.*
 ```
 
 **`worldbuilding/_index.md`:**
@@ -146,6 +146,18 @@ story: {story-title-kebab}
 | Name | Type | File |
 |------|------|------|
 | *No systems yet* | | |
+
+## Factions
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+| *No factions yet* | | | |
+
+## Artifacts
+
+| Name | Type | Status | File |
+|------|------|--------|------|
+| *No artifacts yet* | | | |
 ```
 
 **`plot/_index.md`:**
