@@ -145,7 +145,17 @@ function parseScalar(value) {
     return Number.parseFloat(trimmed);
   }
 
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    // formatScalar writes JSON strings, so unescape them; hand-written values
+    // that are not valid JSON keep the historical quote-stripping behavior.
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed.slice(1, -1);
+    }
+  }
+
+  if (trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) {
     return trimmed.slice(1, -1);
   }
 
@@ -162,7 +172,7 @@ function formatScalar(value) {
   }
 
   const text = String(value);
-  if (text === "" || text === "[]" || /^\s|\s$/.test(text) || /[:#\n"']/.test(text)) {
+  if (text === "" || text === "[]" || /^-?\d+(\.\d+)?$/.test(text) || /^\s|\s$/.test(text) || /[:#\n"']/.test(text)) {
     return JSON.stringify(text);
   }
 

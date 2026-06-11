@@ -128,7 +128,14 @@ function parseScalar(value) {
   if (/^-?\d+\.\d+$/.test(trimmed)) {
     return Number.parseFloat(trimmed);
   }
-  if (trimmed.startsWith('"') && trimmed.endsWith('"') || trimmed.startsWith("'") && trimmed.endsWith("'")) {
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return trimmed.slice(1, -1);
+    }
+  }
+  if (trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) {
     return trimmed.slice(1, -1);
   }
   return trimmed;
@@ -141,7 +148,7 @@ function formatScalar(value) {
     return "";
   }
   const text = String(value);
-  if (text === "" || text === "[]" || /^\s|\s$/.test(text) || /[:#\n"']/.test(text)) {
+  if (text === "" || text === "[]" || /^-?\d+(\.\d+)?$/.test(text) || /^\s|\s$/.test(text) || /[:#\n"']/.test(text)) {
     return JSON.stringify(text);
   }
   return text;

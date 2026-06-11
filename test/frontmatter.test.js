@@ -40,6 +40,32 @@ Body`);
     expect(parsed.data).toEqual({ introduced: "", aliases: [], resolved: "" });
   });
 
+  test("round-trips scalars containing quotes and numeric-looking strings", () => {
+    const original = {
+      title: 'He said "run" and left',
+      note: "with: colon",
+      year: "1984",
+      count: 7
+    };
+
+    const parsed = parseFrontmatter(`${stringifyFrontmatter(original)}Body`);
+    expect(parsed.data).toEqual(original);
+
+    const again = parseFrontmatter(`${stringifyFrontmatter(parsed.data)}Body`);
+    expect(again.data).toEqual(original);
+  });
+
+  test("strips quotes from hand-written values that are not valid JSON", () => {
+    const parsed = parseFrontmatter(`---
+bad: "a\\qb"
+single: 'The Lost Heir'
+tiny: "
+---
+Body`);
+
+    expect(parsed.data).toEqual({ bad: "a\\qb", single: "The Lost Heir", tiny: '"' });
+  });
+
   test("stringifies and replaces frontmatter", () => {
     const yaml = stringifyFrontmatter({
       title: "The Last Ember",
