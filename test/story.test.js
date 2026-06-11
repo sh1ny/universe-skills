@@ -856,7 +856,7 @@ characters: []
 arcs-advanced: []
 status: draft
 word-count: 0
-`, "## Chapter Text\n\nOne.");
+`, "## Chapter Text\n\nOne.\n\n---\n\nTwo.");
 
     const epub = buildBook(created.root, { format: "epub" });
     const docx = buildBook(created.root, { format: "docx" });
@@ -872,8 +872,10 @@ word-count: 0
     });
     expect(fs.readFileSync(epub.outFile).readUInt32LE(0)).toBe(0x04034b50);
     expect(fs.readFileSync(epub.outFile).toString("utf8")).toContain("dcterms:modified");
+    expect(fs.readFileSync(epub.outFile).toString("utf8")).toContain("<p>* * *</p>");
     expect(fs.readFileSync(docx.outFile).toString("utf8")).toContain("word/document.xml");
     expect(fs.readFileSync(docx.outFile).toString("utf8")).toContain("word/styles.xml");
+    expect(fs.readFileSync(docx.outFile).toString("utf8")).toContain("<w:t>* * *</w:t>");
     expect(() => buildBook(created.root, { format: "pdf" })).toThrow("Unsupported build format: pdf");
   });
 });

@@ -283,6 +283,8 @@ The CLI is for deterministic maintenance only. Agents should write story content
 | `story export [path] --out manuscript.md` | Combine chapters into a single manuscript markdown file |
 | `story build [path] --format epub` | Build disposable markdown, EPUB, or DOCX artifacts in `dist/` |
 
+EPUB and DOCX builds target plain prose: scene-break lines (`***`, `---`) become a `* * *` separator paragraph, and other markdown structure such as lists or tables is flattened to text. The markdown export keeps chapter text as-is.
+
 For a complete starter transcript, read [`docs/first-20-minutes.md`](docs/first-20-minutes.md). For the project contract, read [`docs/schema-v2.md`](docs/schema-v2.md) and [`schemas/story.schema.json`](schemas/story.schema.json).
 
 Development uses Bun for tests and coverage:

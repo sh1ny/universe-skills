@@ -2051,12 +2051,13 @@ function paragraphXml(text, style = "") {
   const styleXml = style ? `<w:pPr><w:pStyle w:val="${style}"/></w:pPr>` : "";
   return `<w:p>${styleXml}<w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`;
 }
+var SCENE_BREAK_PATTERN = /^([*_-])( ?\1){2,}$/;
 function markdownParagraphs(markdown) {
   const paragraphs = [];
   for (const paragraph of markdown.replace(/^#+\s+/gm, "").split(/\n{2,}/)) {
     const trimmed = paragraph.replace(/\s+/g, " ").trim();
     if (trimmed) {
-      paragraphs.push(trimmed);
+      paragraphs.push(SCENE_BREAK_PATTERN.test(trimmed) ? "* * *" : trimmed);
     }
   }
   return paragraphs;

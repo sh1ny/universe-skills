@@ -1815,6 +1815,9 @@ function paragraphXml(text, style = "") {
   return `<w:p>${styleXml}<w:r><w:t>${xmlEscape(text)}</w:t></w:r></w:p>`;
 }
 
+// A thematic break: three or more of the same marker, optionally spaced.
+const SCENE_BREAK_PATTERN = /^([*_-])( ?\1){2,}$/;
+
 function markdownParagraphs(markdown) {
   const paragraphs = [];
   for (const paragraph of markdown
@@ -1822,7 +1825,7 @@ function markdownParagraphs(markdown) {
     .split(/\n{2,}/)) {
     const trimmed = paragraph.replace(/\s+/g, " ").trim();
     if (trimmed) {
-      paragraphs.push(trimmed);
+      paragraphs.push(SCENE_BREAK_PATTERN.test(trimmed) ? "* * *" : trimmed);
     }
   }
   return paragraphs;
