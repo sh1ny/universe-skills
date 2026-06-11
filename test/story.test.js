@@ -826,6 +826,24 @@ aliases:
     expect(links.errors.join("\n")).toContain("bad-promise.md references missing arc missing-arc");
   });
 
+  test("reports numeric scene chapter ids as link errors instead of crashing scans", () => {
+    const cwd = makeTempDir();
+    const created = createStoryProject({ cwd, title: "Numeric Chapter", force: false });
+    const chapters = ["chapter-02", "3", "chapter-01", "chapter-04", "chapter-03"];
+    chapters.forEach((chapter, index) => {
+      writeMarkdown(path.join(created.root, "scenes", `${String.fromCharCode(97 + index)}-scene.md`), `
+title: Scene ${index + 1}
+chapter: ${chapter}
+scene: 1
+status: draft
+`, `# Scene ${index + 1}`);
+    });
+
+    const links = validateLinks(created.root);
+    expect(links.ok).toBe(false);
+    expect(links.errors.join("\n")).toContain("scenes/b-scene.md references missing chapter 3");
+  });
+
   test("builds epub and docx formats and rejects unknown formats", () => {
     const cwd = makeTempDir();
     const created = createStoryProject({ cwd, title: "Plain Build", force: false });

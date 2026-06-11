@@ -215,7 +215,10 @@ export function scanProject(root) {
       id,
       file,
       title: data.title ?? titleCaseSlug(id),
-      chapter: data.chapter ?? "",
+      // Coerce before the localeCompare sort below: a hand-written
+      // `chapter: 3` parses as a number and must surface as a link error,
+      // not a crash.
+      chapter: String(data.chapter ?? ""),
       scene: Number(data.scene ?? sceneNumberFromFile(file) ?? 0),
       pov: data.pov ?? "",
       location: data.location ?? "",

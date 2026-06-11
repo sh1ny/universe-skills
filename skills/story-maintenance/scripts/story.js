@@ -624,7 +624,7 @@ function scanProject(root) {
       id,
       file,
       title: data.title ?? titleCaseSlug(id),
-      chapter: data.chapter ?? "",
+      chapter: String(data.chapter ?? ""),
       scene: Number(data.scene ?? sceneNumberFromFile(file) ?? 0),
       pov: data.pov ?? "",
       location: data.location ?? "",
