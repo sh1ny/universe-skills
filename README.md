@@ -260,7 +260,13 @@ bun install
 bun run story --help
 ```
 
-The package also exposes a Node-compatible bin, so published installs can run `story` through npm/npx without Bun-specific runtime APIs. For copied-skill installs, `story-maintenance` includes a bundled `scripts/story.js` fallback that agents can run with Node.
+The package also exposes a Node-compatible bin with no runtime dependencies. It is not on the npm registry yet, so run it straight from GitHub:
+
+```shell
+npx --yes --package github:danjdewhurst/story-skills story --help
+```
+
+For copied-skill installs, `story-maintenance` includes a bundled `scripts/story.js` fallback that agents can run with Node.
 
 The CLI is for deterministic maintenance only. Agents should write story content directly to markdown files, not create project-local build or generator scripts to emit the story.
 

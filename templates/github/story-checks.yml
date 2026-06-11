@@ -6,6 +6,9 @@
 # registries, dangling references, or continuity contradictions.
 #
 # If your story project lives in a subdirectory, change STORY_DIR.
+#
+# The Story CLI runs straight from GitHub; switch the npx --package value
+# to story-skills once the package is published to the npm registry.
 
 name: Story checks
 
@@ -30,13 +33,13 @@ jobs:
           node-version: 20
 
       - name: Validate structure, frontmatter, and registries
-        run: npx --yes --package story-skills story validate "$STORY_DIR"
+        run: npx --yes --package github:danjdewhurst/story-skills story validate "$STORY_DIR"
 
       - name: Check cross-references and backlinks
-        run: npx --yes --package story-skills story links "$STORY_DIR"
+        run: npx --yes --package github:danjdewhurst/story-skills story links "$STORY_DIR"
 
       - name: Check continuity contracts
-        run: npx --yes --package story-skills story continuity "$STORY_DIR"
+        run: npx --yes --package github:danjdewhurst/story-skills story continuity "$STORY_DIR"
 
       - name: Report project health
-        run: npx --yes --package story-skills story report "$STORY_DIR" --actionable
+        run: npx --yes --package github:danjdewhurst/story-skills story report "$STORY_DIR" --actionable
