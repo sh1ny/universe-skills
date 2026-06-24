@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { parseArgs, runCli } from "../src/cli.js";
+import { createStoryProject, createUniverseProject } from "../src/story.js";
 import { makeTempDir, memoryIo, writeMarkdown } from "./helpers.js";
 
 function invoke(cwd, argv) {
@@ -225,5 +226,161 @@ word-count: 9
     expect(result.stdout).toContain("Usage: story");
     expect(result.stdout).toContain("wordcount");
     expect(result.stdout).toContain("build");
+  });
+});
+
+describe("cli universe commands", () => {
+  test("story universe init creates universe project", () => {
+    const cwd = makeTempDir();
+    const result = invoke(cwd, ["universe", "init", "My", "Universe"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("Created universe project:");
+    expect(fs.existsSync(path.join(cwd, "universe.md"))).toBe(true);
+  });
+
+  test("story universe scan outputs entity list", () => {
+    const cwd = makeTempDir();
+    createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(cwd, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    const result = invoke(cwd, ["universe", "scan"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("legend");
+    expect(result.out).toContain("Legend");
+    expect(result.out).toContain("character");
+  });
+
+  test("story universe scan from universe root without path arg", () => {
+    const cwd = makeTempDir();
+    createUniverseProject({ name: "Aetheria", cwd });
+    const result = invoke(cwd, ["universe", "scan"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("Universe is empty");
+  });
+
+  test("story universe scan reports no universe found", () => {
+    const cwd = makeTempDir();
+    const result = invoke(cwd, ["universe", "scan"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("No universe found");
+  });
+
+  test("story universe validate reports valid universe", () => {
+    const cwd = makeTempDir();
+    createUniverseProject({ name: "Aetheria", cwd });
+    const result = invoke(cwd, ["universe", "validate"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("Universe is valid");
+  });
+
+  test("story universe validate reports errors", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "Bad_Id.md"), `
+name: "Bad"
+role: supporting
+status: alive
+`, "# Bad\n");
+    const cliResult = invoke(cwd, ["universe", "validate"]);
+    expect(cliResult.code).toBe(1);
+    expect(cliResult.err).toContain("kebab-case");
+  });
+
+  test("story universe report outputs counts and validation", () => {
+    const cwd = makeTempDir();
+    createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(cwd, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    const result = invoke(cwd, ["universe", "report"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("Characters: 1");
+    expect(result.out).toContain("Total entities: 1");
+    expect(result.out).toContain("Validation:");
+  });
+
+  test("story universe report on empty universe shows zero counts", () => {
+    const cwd = makeTempDir();
+    createUniverseProject({ name: "Aetheria", cwd });
+    const result = invoke(cwd, ["universe", "report"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("Characters: 0");
+    expect(result.out).toContain("Total entities: 0");
+  });
+
+  test("story universe report reports no universe found", () => {
+    const cwd = makeTempDir();
+    const result = invoke(cwd, ["universe", "report"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("No universe found");
+  });
+
+  test("story universe with unknown subcommand writes error", () => {
+    const cwd = makeTempDir();
+    const result = invoke(cwd, ["universe", "frobnicate"]);
+    expect(result.code).toBe(1);
+    expect(result.err).toContain("Unknown universe subcommand: frobnicate");
+  });
+
+  test("help text includes universe command group", () => {
+    const cwd = makeTempDir();
+    const help = invoke(cwd, ["--help"]).out;
+    expect(help).toContain("universe");
+    expect(help).toContain("universe init <name>");
+    expect(help).toContain("universe scan [path]");
+    expect(help).toContain("universe validate [path]");
+    expect(help).toContain("universe report [path]");
+  });
+
+  test("story universe init without name throws error", () => {
+    const cwd = makeTempDir();
+    const result = invoke(cwd, ["universe", "init"]);
+    expect(result.code).toBe(1);
+    expect(result.err).toContain("A universe name is required");
+  });
+});
+
+describe("cli universe story-root invocation", () => {
+  test("story universe scan resolves from story root by walking up", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const result = invoke(storyRoot, ["universe", "scan"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("legend");
+    expect(result.out).toContain("Legend");
+  });
+
+  test("story universe report resolves from story root by walking up", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const result = invoke(storyRoot, ["universe", "report"]);
+    expect(result.code).toBe(0);
+    expect(result.out).toContain("Characters: 1");
+    expect(result.out).toContain("Total entities: 1");
   });
 });

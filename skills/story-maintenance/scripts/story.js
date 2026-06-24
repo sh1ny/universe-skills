@@ -474,6 +474,20 @@ var ARTIFACT_STATUSES = new Set(["active", "lost", "destroyed", "hidden", "trans
 var QUESTION_STATUSES = new Set(["open", "answered", "resolved", "dropped"]);
 var PROMISE_STATUSES = new Set(["planned", "planted", "paid-off", "dropped"]);
 var TERM_CATEGORIES = new Set(["person", "place", "faction", "artifact", "concept", "term", "other"]);
+var UNIVERSE_REQUIRED_PATHS = [
+  "universe.md",
+  "characters/_index.md",
+  "worldbuilding/_index.md",
+  "worldbuilding/locations",
+  "worldbuilding/systems",
+  "worldbuilding/factions",
+  "worldbuilding/artifacts"
+];
+var UNIVERSE_INDEX_SCHEMAS = [
+  [path2.join("characters", "_index.md"), "character-registry"],
+  [path2.join("worldbuilding", "_index.md"), "world-registry"]
+];
+var UNIVERSE_REQUIRED_FRONTMATTER = ["name", "schema-version"];
 var RELATIONSHIP_INVERSES = new Map([
   ["parent", "child"],
   ["child", "parent"],
@@ -513,6 +527,14 @@ function createStoryProject(options) {
     throw new Error(`${root} already exists. Use --force to overwrite starter files.`);
   }
   const themes = normalizeList(options.themes, ["change"]);
+  const universeRoot = resolveUniverseRoot(root);
+  let universeId = null;
+  if (universeRoot) {
+    const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+    if (universeMd.data.name) {
+      universeId = kebabCase(universeMd.data.name);
+    }
+  }
   fs.mkdirSync(path2.join(root, "characters"), { recursive: true });
   fs.mkdirSync(path2.join(root, "worldbuilding", "locations"), { recursive: true });
   fs.mkdirSync(path2.join(root, "worldbuilding", "systems"), { recursive: true });
@@ -533,7 +555,8 @@ function createStoryProject(options) {
     themes,
     pov: options.pov ?? "third-person-limited",
     tense: options.tense ?? "past",
-    synopsis: options.synopsis ?? "Add a 2-3 sentence synopsis here."
+    synopsis: options.synopsis ?? "Add a 2-3 sentence synopsis here.",
+    universe: universeId
   }), { root });
   writeFile(path2.join(root, "characters", "_index.md"), characterIndex(storyId, [], "", ""), { root });
   writeFile(path2.join(root, "worldbuilding", "_index.md"), worldIndex(storyId, [], [], [], [], ""), { root });
@@ -547,11 +570,38 @@ function createStoryProject(options) {
   writeFile(path2.join(root, "glossary", "_index.md"), glossaryIndex(storyId, []), { root });
   return { root, storyId, files: REQUIRED_PATHS.filter((entry) => entry.endsWith(".md")) };
 }
+function createUniverseProject(options) {
+  const name = String(options.name ?? "").trim();
+  if (!name) {
+    throw new Error("A universe name is required");
+  }
+  const universeId = kebabCase(name);
+  const displayName = titleCaseSlug(universeId);
+  const root = path2.resolve(options.cwd ?? process.cwd(), options.dir ?? ".");
+  if (fs.existsSync(path2.join(root, "universe.md"))) {
+    throw new Error(`${root} already contains a universe.md`);
+  }
+  const changed = [];
+  ensureDirectory(path2.join(root, "characters"), changed, root);
+  ensureDirectory(path2.join(root, "worldbuilding", "locations"), changed, root);
+  ensureDirectory(path2.join(root, "worldbuilding", "systems"), changed, root);
+  ensureDirectory(path2.join(root, "worldbuilding", "factions"), changed, root);
+  ensureDirectory(path2.join(root, "worldbuilding", "artifacts"), changed, root);
+  writeFile(path2.join(root, "universe.md"), universeBible({
+    name: displayName,
+    genre: options.genre ?? "fiction",
+    tone: options.tone ?? "epic",
+    themes: normalizeList(options.themes, ["change"])
+  }), { root });
+  writeFile(path2.join(root, "characters", "_index.md"), characterIndex(universeId, [], "", ""), { root });
+  writeFile(path2.join(root, "worldbuilding", "_index.md"), worldIndex(universeId, [], [], [], [], ""), { root });
+  return { root, universeId, files: UNIVERSE_REQUIRED_PATHS.filter((entry) => entry.endsWith(".md")) };
+}
 function scanProject(root) {
   const projectRoot = path2.resolve(root);
   const story = readMarkdown(path2.join(projectRoot, "story.md"), projectRoot);
   const storyId = kebabCase(story.data.title ?? path2.basename(projectRoot));
-  return {
+  const project = {
     root: projectRoot,
     story,
     storyId,
@@ -661,6 +711,77 @@ function scanProject(root) {
       aliases: asArray(data.aliases)
     })),
     continuity: fs.existsSync(path2.join(projectRoot, "continuity", "state.md")) ? readMarkdown(path2.join(projectRoot, "continuity", "state.md"), projectRoot) : null
+  };
+  if (story.data.universe) {
+    const universeRoot = resolveUniverseRoot(projectRoot);
+    if (universeRoot) {
+      project.universe = scanUniverse(universeRoot);
+      project.universeRoot = universeRoot;
+    }
+  }
+  return project;
+}
+function resolveUniverseRoot(targetPath) {
+  let current = path2.resolve(targetPath);
+  if (fs.existsSync(path2.join(current, "universe.md"))) {
+    return current;
+  }
+  while (true) {
+    const parent = path2.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+    if (fs.existsSync(path2.join(current, "universe.md"))) {
+      return current;
+    }
+  }
+}
+function scanUniverse(universeRoot) {
+  const resolvedRoot = path2.resolve(universeRoot);
+  return {
+    characters: readEntityFiles(resolvedRoot, "characters", (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      role: data.role ?? "",
+      status: data.status ?? "",
+      diedIn: data["died-in"] ?? "",
+      relationships: asArray(data.relationships),
+      locations: asArray(data.locations)
+    })),
+    locations: readEntityFiles(resolvedRoot, path2.join("worldbuilding", "locations"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      region: data.region ?? "",
+      notableCharacters: asArray(data["notable-characters"])
+    })),
+    systems: readEntityFiles(resolvedRoot, path2.join("worldbuilding", "systems"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? ""
+    })),
+    factions: readEntityFiles(resolvedRoot, path2.join("worldbuilding", "factions"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      status: data.status ?? "",
+      members: asArray(data.members),
+      locations: asArray(data.locations)
+    })),
+    artifacts: readEntityFiles(resolvedRoot, path2.join("worldbuilding", "artifacts"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      status: data.status ?? "",
+      owner: data.owner ?? "",
+      location: data.location ?? ""
+    }))
   };
 }
 function validateProject(root) {
@@ -858,6 +979,114 @@ function validateLinks(root) {
   }
   return { ok: errors.length === 0, errors, warnings };
 }
+function validateUniverseIds(entities, type, errors) {
+  const seen = new Set;
+  for (const entity of entities) {
+    if (!isKebabId(entity.id)) {
+      errors.push(`Universe entity id must be kebab-case: ${entity.id} (${type})`);
+    }
+    if (seen.has(entity.id)) {
+      errors.push(`Duplicate entity id '${entity.id}' in universe ${type}`);
+    }
+    seen.add(entity.id);
+  }
+}
+function validateUniverse(root) {
+  const resolvedRoot = path2.resolve(root);
+  const errors = [];
+  const warnings = [];
+  const isStoryRoot = fs.existsSync(path2.join(resolvedRoot, "story.md"));
+  let storyData = null;
+  if (isStoryRoot) {
+    const story = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
+    storyData = story.data;
+  }
+  if (isStoryRoot && storyData.universe) {
+    const universeRoot2 = resolveUniverseRoot(resolvedRoot);
+    if (universeRoot2 === null) {
+      warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
+      return { ok: true, errors, warnings };
+    }
+  }
+  const universeRoot = resolveUniverseRoot(resolvedRoot);
+  if (universeRoot === null) {
+    return { ok: true, errors, warnings };
+  }
+  const universeEntities = scanUniverse(universeRoot);
+  const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+  for (const field of UNIVERSE_REQUIRED_FRONTMATTER) {
+    if (universeMd.data[field] === undefined || universeMd.data[field] === "") {
+      errors.push(`universe.md missing required frontmatter field: ${field}`);
+    }
+  }
+  const entityTypes = ["characters", "locations", "systems", "factions", "artifacts"];
+  for (const type of entityTypes) {
+    validateUniverseIds(universeEntities[type], type, errors);
+  }
+  if (isStoryRoot) {
+    const project = scanProject(resolvedRoot);
+    for (const type of entityTypes) {
+      const storyIds = new Set(project[type].map((e) => e.id));
+      for (const entity of universeEntities[type]) {
+        if (storyIds.has(entity.id)) {
+          errors.push(`Entity id '${entity.id}' exists at both story and universe level — shadowing is not allowed`);
+        }
+      }
+    }
+    const combinedCharacters = new Map([
+      ...universeEntities.characters.map((c) => [c.id, c]),
+      ...project.characters.map((c) => [c.id, c])
+    ]);
+    const combinedLocations = new Map([
+      ...universeEntities.locations.map((l) => [l.id, l]),
+      ...project.locations.map((l) => [l.id, l])
+    ]);
+    const combinedFactions = new Map([
+      ...universeEntities.factions.map((f) => [f.id, f]),
+      ...project.factions.map((f) => [f.id, f])
+    ]);
+    for (const character of project.characters) {
+      for (const relationship of character.relationships) {
+        if (!combinedCharacters.has(relationship.character)) {
+          errors.push(`Cross-level reference 'character: ${relationship.character}' does not resolve at story or universe level`);
+        }
+      }
+      for (const locationId of character.locations) {
+        if (!combinedLocations.has(locationId)) {
+          errors.push(`Cross-level reference 'locations: ${locationId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+    for (const location of project.locations) {
+      for (const characterId of location.notableCharacters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'notable-characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+    for (const faction of project.factions) {
+      for (const characterId of faction.members) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'members: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const locationId of faction.locations) {
+        if (!combinedLocations.has(locationId)) {
+          errors.push(`Cross-level reference 'locations: ${locationId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+    for (const artifact of project.artifacts) {
+      if (artifact.owner && !combinedCharacters.has(artifact.owner) && !combinedFactions.has(artifact.owner)) {
+        errors.push(`Cross-level reference 'owner: ${artifact.owner}' does not resolve at story or universe level`);
+      }
+      if (artifact.location && !combinedLocations.has(artifact.location)) {
+        errors.push(`Cross-level reference 'location: ${artifact.location}' does not resolve at story or universe level`);
+      }
+    }
+  }
+  return { ok: errors.length === 0, errors, warnings };
+}
 function checkProjectContinuity(root) {
   return checkContinuity(scanProject(root));
 }
@@ -955,6 +1184,100 @@ function formatProjectReport(report, options = {}) {
   if (options.actionable) {
     lines.push("", "Next Actions:");
     appendActionLines(lines, report.actions);
+  }
+  return `${lines.join(`
+`)}
+`;
+}
+function universeScan(root) {
+  const universeRoot = resolveUniverseRoot(root);
+  if (universeRoot === null) {
+    return null;
+  }
+  const entities = scanUniverse(universeRoot);
+  const compact = [];
+  for (const character of entities.characters) {
+    compact.push({ id: character.id, name: character.name, type: "character", file: path2.relative(universeRoot, character.file) });
+  }
+  for (const location of entities.locations) {
+    compact.push({ id: location.id, name: location.name, type: "location", file: path2.relative(universeRoot, location.file) });
+  }
+  for (const system of entities.systems) {
+    compact.push({ id: system.id, name: system.name, type: "system", file: path2.relative(universeRoot, system.file) });
+  }
+  for (const faction of entities.factions) {
+    compact.push({ id: faction.id, name: faction.name, type: "faction", file: path2.relative(universeRoot, faction.file) });
+  }
+  for (const artifact of entities.artifacts) {
+    compact.push({ id: artifact.id, name: artifact.name, type: "artifact", file: path2.relative(universeRoot, artifact.file) });
+  }
+  return compact;
+}
+function formatUniverseScan(result) {
+  if (result === null) {
+    return `No universe found
+`;
+  }
+  if (result.length === 0) {
+    return `Universe is empty (no entities)
+`;
+  }
+  const lines = ["# Universe Entities", ""];
+  for (const entity of result) {
+    lines.push(`- [${entity.type}] ${entity.id} — ${entity.name} (${entity.file})`);
+  }
+  return `${lines.join(`
+`)}
+`;
+}
+function universeReport(root) {
+  const universeRoot = resolveUniverseRoot(root);
+  if (universeRoot === null) {
+    return null;
+  }
+  const entities = scanUniverse(universeRoot);
+  const validation = validateUniverse(root);
+  return {
+    counts: {
+      characters: entities.characters.length,
+      locations: entities.locations.length,
+      systems: entities.systems.length,
+      factions: entities.factions.length,
+      artifacts: entities.artifacts.length
+    },
+    total: entities.characters.length + entities.locations.length + entities.systems.length + entities.factions.length + entities.artifacts.length,
+    validation
+  };
+}
+function formatUniverseReport(report) {
+  if (report === null) {
+    return `No universe found
+`;
+  }
+  const lines = [
+    "# Universe Report",
+    "",
+    "Entity Counts:",
+    `- Characters: ${report.counts.characters}`,
+    `- Locations: ${report.counts.locations}`,
+    `- Systems: ${report.counts.systems}`,
+    `- Factions: ${report.counts.factions}`,
+    `- Artifacts: ${report.counts.artifacts}`,
+    `- Total entities: ${report.total}`,
+    "",
+    `Validation: ${formatCheck(report.validation)}`
+  ];
+  if (report.validation.errors.length > 0) {
+    lines.push("", "Errors:");
+    for (const error of report.validation.errors) {
+      lines.push(`- ${error}`);
+    }
+  }
+  if (report.validation.warnings.length > 0) {
+    lines.push("", "Warnings:");
+    for (const warning of report.validation.warnings) {
+      lines.push(`- ${warning}`);
+    }
   }
   return `${lines.join(`
 `)}
@@ -1193,7 +1516,7 @@ function removeEntity(root, options) {
   return { kind, id, file, changed: [file].concat(reindexed.changed) };
 }
 function storyBible(options) {
-  return `${stringifyFrontmatter({
+  const frontmatter = {
     title: options.title,
     "schema-version": STORY_SCHEMA_VERSION,
     genre: options.genre,
@@ -1203,7 +1526,11 @@ function storyBible(options) {
     themes: options.themes,
     pov: options.pov,
     tense: options.tense
-  })}# ${options.title}
+  };
+  if (options.universe) {
+    frontmatter.universe = options.universe;
+  }
+  return `${stringifyFrontmatter(frontmatter)}# ${options.title}
 
 ## Synopsis
 
@@ -1212,6 +1539,28 @@ ${options.synopsis}
 ## Tone & Style
 
 Add notes on the story's voice, texture, and emotional register.
+
+## Notes
+
+`;
+}
+function universeBible(options) {
+  const themes = normalizeList(options.themes, ["change"]);
+  return `${stringifyFrontmatter({
+    name: options.name,
+    "schema-version": STORY_SCHEMA_VERSION,
+    genre: options.genre ?? "fiction",
+    tone: options.tone ?? "epic",
+    themes
+  })}# ${options.name}
+
+## Cosmological Overview
+
+Describe the fundamental nature of the universe — cosmology, physics, magic systems, and metaphysical laws.
+
+## Universe History
+
+Provide a high-level summary of major epochs, cataclysms, and civilizational arcs.
 
 ## Notes
 
@@ -2854,6 +3203,14 @@ Commands:
                     Remove an entity and scrub id references
   export [path]      Combine chapters into a manuscript markdown file
   build [path]       Build a disposable book artifact in dist/
+  universe init <name>
+                    Scaffold a universe project (parent container for stories)
+  universe scan [path]
+                    List universe entities (id, name, type, file)
+  universe validate [path]
+                    Validate universe structure, ids, and cross-level references
+  universe report [path]
+                    Summarize universe inventory and validation status
 
 Options:
   --title <name>            Story title for import
@@ -3039,6 +3396,37 @@ function runCli(argv, io) {
       io.stdout.write(`Built ${result.chapters} chapters as ${result.format} to ${result.outFile}
 `);
       return 0;
+    }
+    if (command === "universe") {
+      const subcommand = parsed.positionals[1];
+      if (subcommand === "init") {
+        const name = parsed.positionals.slice(2).join(" ");
+        if (!name) {
+          throw new Error("A universe name is required");
+        }
+        const result = createUniverseProject({ name, cwd, dir: parsed.options.dir });
+        io.stdout.write(`Created universe project: ${result.root}
+`);
+        return 0;
+      }
+      if (subcommand === "scan") {
+        const root2 = path4.resolve(cwd, parsed.positionals[2] ?? ".");
+        io.stdout.write(formatUniverseScan(universeScan(root2)));
+        return 0;
+      }
+      if (subcommand === "validate") {
+        const root2 = path4.resolve(cwd, parsed.positionals[2] ?? ".");
+        return reportResult(io, validateUniverse(root2), "Universe is valid", "Universe validation failed");
+      }
+      if (subcommand === "report") {
+        const root2 = path4.resolve(cwd, parsed.positionals[2] ?? ".");
+        io.stdout.write(formatUniverseReport(universeReport(root2)));
+        return 0;
+      }
+      io.stderr.write(`Unknown universe subcommand: ${subcommand}
+
+${HELP}`);
+      return 1;
     }
     io.stderr.write(`Unknown command: ${command}
 

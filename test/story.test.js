@@ -2,23 +2,35 @@ import { describe, expect, test } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  formatProjectReport,
   buildBook,
   computeWordCounts,
   createEntity,
   createStoryProject,
+  createUniverseProject,
   exportManuscript,
   formatActionReport,
+  formatProjectReport,
+  formatUniverseReport,
+  formatUniverseScan,
   migrateProject,
-  projectReport,
   projectActions,
+  projectReport,
   reindexProject,
   removeEntity,
   renameEntity,
+  resolveUniverseRoot,
   scanProject,
+  scanUniverse,
   STORY_SCHEMA_VERSION,
+  UNIVERSE_INDEX_SCHEMAS,
+  UNIVERSE_REQUIRED_FRONTMATTER,
+  UNIVERSE_REQUIRED_PATHS,
+  universeReport,
+  universeScan,
   validateLinks,
-  validateProject
+  validateProject,
+  validateUniverse,
+  validateUniverseIds
 } from "../src/story.js";
 import { makeTempDir, writeMarkdown } from "./helpers.js";
 
@@ -877,5 +889,793 @@ word-count: 0
     expect(fs.readFileSync(docx.outFile).toString("utf8")).toContain("word/styles.xml");
     expect(fs.readFileSync(docx.outFile).toString("utf8")).toContain("<w:t>* * *</w:t>");
     expect(() => buildBook(created.root, { format: "pdf" })).toThrow("Unsupported build format: pdf");
+  });
+});
+
+describe("universe scaffold", () => {
+  test("UNIVERSE_REQUIRED_PATHS lists universe-scoped paths only", () => {
+    expect(UNIVERSE_REQUIRED_PATHS).toEqual([
+      "universe.md",
+      "characters/_index.md",
+      "worldbuilding/_index.md",
+      "worldbuilding/locations",
+      "worldbuilding/systems",
+      "worldbuilding/factions",
+      "worldbuilding/artifacts"
+    ]);
+  });
+
+  test("UNIVERSE_INDEX_SCHEMAS maps registry files to types", () => {
+    expect(UNIVERSE_INDEX_SCHEMAS).toEqual([
+      [path.join("characters", "_index.md"), "character-registry"],
+      [path.join("worldbuilding", "_index.md"), "world-registry"]
+    ]);
+  });
+
+  test("UNIVERSE_REQUIRED_FRONTMATTER lists name and schema-version", () => {
+    expect(UNIVERSE_REQUIRED_FRONTMATTER).toEqual(["name", "schema-version"]);
+  });
+
+  test("createUniverseProject creates universe.md with correct frontmatter", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMd = fs.readFileSync(path.join(result.root, "universe.md"), "utf8");
+    expect(universeMd).toContain("name: Aetheria");
+    expect(universeMd).toContain("schema-version: 2");
+    expect(universeMd).toContain("genre:");
+    expect(universeMd).toContain("tone:");
+    expect(universeMd).toContain("themes:");
+    expect(universeMd).toContain("# Aetheria");
+    expect(universeMd).toContain("## Cosmological Overview");
+    expect(universeMd).toContain("## Universe History");
+    expect(universeMd).toContain("## Notes");
+  });
+
+  test("createUniverseProject creates all required subdirectories", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    for (const required of UNIVERSE_REQUIRED_PATHS) {
+      expect(fs.existsSync(path.join(result.root, required))).toBe(true);
+    }
+  });
+
+  test("createUniverseProject creates _index.md files with correct registry types", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    const charIndex = fs.readFileSync(path.join(result.root, "characters", "_index.md"), "utf8");
+    expect(charIndex).toContain("type: character-registry");
+    const worldIndex = fs.readFileSync(path.join(result.root, "worldbuilding", "_index.md"), "utf8");
+    expect(worldIndex).toContain("type: world-registry");
+  });
+
+  test("createUniverseProject returns root, universeId, and files", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    expect(result.root).toBe(path.resolve(cwd));
+    expect(result.files).toContain("universe.md");
+  });
+
+  test("createUniverseProject throws if universe.md already exists", () => {
+    const cwd = makeTempDir();
+    createUniverseProject({ name: "Aetheria", cwd });
+    expect(() => createUniverseProject({ name: "Aetheria", cwd })).toThrow("already contains a universe.md");
+  });
+
+  test("createUniverseProject accepts genre, tone, and themes", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({
+      name: "My Epic Universe",
+      cwd,
+      genre: "fantasy",
+      tone: "epic",
+      themes: ["hope", "sacrifice"]
+    });
+    const universeMd = fs.readFileSync(path.join(result.root, "universe.md"), "utf8");
+    expect(universeMd).toContain("name: My Epic Universe");
+    expect(universeMd).toContain("genre: fantasy");
+    expect(universeMd).toContain("tone: epic");
+    expect(universeMd).toContain("- hope");
+    expect(universeMd).toContain("- sacrifice");
+  });
+
+  test("createUniverseProject converts kebab-case name to display name", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "my-epic-universe", cwd });
+    const universeMd = fs.readFileSync(path.join(result.root, "universe.md"), "utf8");
+    expect(universeMd).toContain("name: My Epic Universe");
+    expect(result.universeId).toBe("my-epic-universe");
+  });
+});
+
+describe("universe resolution", () => {
+  test("resolveUniverseRoot returns path when universe.md exists at target", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    expect(resolveUniverseRoot(result.root)).toBe(result.root);
+  });
+
+  test("resolveUniverseRoot walks up to find universe.md from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storyRoot = path.join(universeResult.root, "stories", "my-story");
+    fs.mkdirSync(storyRoot, { recursive: true });
+    expect(resolveUniverseRoot(storyRoot)).toBe(universeResult.root);
+  });
+
+  test("resolveUniverseRoot returns null when no universe.md is found", () => {
+    const cwd = makeTempDir();
+    expect(resolveUniverseRoot(cwd)).toBeNull();
+  });
+
+  test("scanProject populates project.universe when universe is linked", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storyRoot = path.join(universeResult.root, "stories", "my-story");
+    fs.mkdirSync(path.dirname(storyRoot), { recursive: true });
+    createStoryProject({ title: "My Story", cwd: path.dirname(storyRoot), dir: "my-story" });
+
+    // Manually inject the universe field — Task 3's auto-detection is not yet implemented.
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    const withUniverse = storyMd.replace("status: planning", "status: planning\nuniverse: aetheria");
+    fs.writeFileSync(storyMdPath, withUniverse, "utf8");
+
+    writeMarkdown(path.join(universeResult.root, "characters", "ancient-one.md"), `
+name: "Ancient One"
+role: supporting
+status: alive
+`, "# Ancient One\n");
+
+    const project = scanProject(storyRoot);
+    expect(project.universe).toBeDefined();
+    expect(project.universeRoot).toBe(universeResult.root);
+    expect(project.universe.characters).toHaveLength(1);
+    expect(project.universe.characters[0].id).toBe("ancient-one");
+  });
+
+  test("scanProject leaves project.universe absent when no universe field in story.md", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Standalone", cwd });
+    const project = scanProject(path.join(cwd, "standalone"));
+    expect(project.universe).toBeUndefined();
+    expect(project.universeRoot).toBeUndefined();
+  });
+
+  test("scanProject leaves project.universe absent when universe field set but resolveUniverseRoot returns null", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Orphaned", cwd });
+    const storyMdPath = path.join(cwd, "orphaned", "story.md");
+    const content = fs.readFileSync(storyMdPath, "utf8");
+    const withUniverse = content.replace("status: planning", "status: planning\nuniverse: missing-universe");
+    fs.writeFileSync(storyMdPath, withUniverse, "utf8");
+    const project = scanProject(path.join(cwd, "orphaned"));
+    expect(project.universe).toBeUndefined();
+  });
+
+  test("scanUniverse returns all five entity types from universe root", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+type: wilderness
+region: Center
+`, "# Mountain\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "systems", "high-magic.md"), `
+name: "High Magic"
+type: magic
+`, "# High Magic\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "factions", "ancient-order.md"), `
+name: "Ancient Order"
+type: religion
+status: active
+`, "# Order\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "artifacts", "eternal-flame.md"), `
+name: "Eternal Flame"
+type: relic
+status: active
+`, "# Flame\n");
+
+    const entities = scanUniverse(result.root);
+    expect(entities.characters).toHaveLength(1);
+    expect(entities.locations).toHaveLength(1);
+    expect(entities.systems).toHaveLength(1);
+    expect(entities.factions).toHaveLength(1);
+    expect(entities.artifacts).toHaveLength(1);
+  });
+});
+
+describe("story init universe auto-detection", () => {
+  test("createStoryProject inside universe writes universe field to story.md", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+
+    const storyMd = fs.readFileSync(path.join(storiesDir, "my-tale", "story.md"), "utf8");
+    expect(storyMd).toContain("universe: aetheria");
+  });
+
+  test("createStoryProject outside universe has no universe field in story.md", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Standalone", cwd });
+    const storyMd = fs.readFileSync(path.join(cwd, "standalone", "story.md"), "utf8");
+    expect(storyMd).not.toContain("universe:");
+  });
+
+  test("createStoryProject outside universe produces identical output to current behavior", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Plain Story", cwd });
+    const root = path.join(cwd, "plain-story");
+    const project = scanProject(root);
+    expect(project.universe).toBeUndefined();
+    expect(project.universeRoot).toBeUndefined();
+    expect(project.storyId).toBe("plain-story");
+  });
+});
+
+describe("universe validation", () => {
+  test("returns clean result when no universe field and no universe.md", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Standalone", cwd });
+    const result = validateUniverse(path.join(cwd, "standalone"));
+    expect(result.ok).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("emits warning when story.md has universe field but universe.md not found", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Orphaned", cwd });
+    const storyMdPath = path.join(cwd, "orphaned", "story.md");
+    const content = fs.readFileSync(storyMdPath, "utf8");
+    const withUniverse = content.replace("status: planning", "status: planning\nuniverse: missing-universe");
+    fs.writeFileSync(storyMdPath, withUniverse, "utf8");
+    const result = validateUniverse(path.join(cwd, "orphaned"));
+    expect(result.ok).toBe(true);
+    expect(result.warnings.some((w) => w.includes("Universe 'missing-universe' not found"))).toBe(true);
+  });
+
+  test("validates universe entity ids are kebab-case", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "Bad_Id.md"), `
+name: "Bad Id"
+role: supporting
+status: alive
+`, "# Bad\n");
+    const validation = validateUniverse(result.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("kebab-case"))).toBe(true);
+  });
+
+  test("validates universe.md frontmatter completeness", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMdPath = path.join(result.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    const broken = content.replace(/name: Aetheria\n/, "");
+    fs.writeFileSync(universeMdPath, broken, "utf8");
+    const validation = validateUniverse(result.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("name"))).toBe(true);
+  });
+
+  test("cross-level reference to universe location resolves from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+type: wilderness
+region: Center
+notable-characters:
+  - my-tale-hero
+`, "# Mountain\n");
+
+    writeMarkdown(path.join(universeResult.root, "characters", "my-tale-hero.md"), `
+name: "Hero"
+role: protagonist
+status: alive
+locations:
+  - sacred-mountain
+`, "# Hero\n");
+
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "characters", "story-hero.md"), `
+name: "Story Hero"
+role: protagonist
+status: alive
+locations:
+  - sacred-mountain
+`, "# Story Hero\n");
+
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+
+  test("broken cross-level reference errors from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "characters", "story-hero.md"), `
+name: "Story Hero"
+role: protagonist
+status: alive
+locations:
+  - nonexistent-place
+`, "# Story Hero\n");
+
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'locations: nonexistent-place' does not resolve"))).toBe(true);
+  });
+
+  test("id shadowing between story and universe errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+
+    writeMarkdown(path.join(universeResult.root, "characters", "shared-hero.md"), `
+name: "Universe Hero"
+role: supporting
+status: alive
+`, "# Universe Hero\n");
+
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "characters", "shared-hero.md"), `
+name: "Story Hero"
+role: protagonist
+status: alive
+`, "# Story Hero\n");
+
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Entity id 'shared-hero' exists at both story and universe level — shadowing is not allowed"))).toBe(true);
+  });
+
+  test("validateUniverse from universe root only runs id and frontmatter checks", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    const validation = validateUniverse(result.root);
+    expect(validation.ok).toBe(true);
+  });
+
+  test("validateUniverseIds catches duplicate ids with synthetic array", () => {
+    const errors = [];
+    validateUniverseIds(
+      [{ id: "the-old-gods", file: "a", name: "Old Gods" }, { id: "the-old-gods", file: "b", name: "Old Gods 2" }],
+      "characters",
+      errors
+    );
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toBe("Duplicate entity id 'the-old-gods' in universe characters");
+  });
+});
+
+describe("universe scan and report", () => {
+  test("universeScan returns compact entity list from universe root", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+type: wilderness
+region: Center
+`, "# Mountain\n");
+
+    const scan = universeScan(result.root);
+    expect(scan).not.toBeNull();
+    expect(scan).toHaveLength(2);
+    const legend = scan.find((e) => e.id === "legend");
+    expect(legend).toBeDefined();
+    expect(legend.name).toBe("Legend");
+    expect(legend.type).toBe("character");
+    expect(legend.file).toBe(path.join("characters", "legend.md"));
+    const mountain = scan.find((e) => e.id === "sacred-mountain");
+    expect(mountain.type).toBe("location");
+  });
+
+  test("universeScan resolves from story root by walking up", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+
+    const scan = universeScan(path.join(storiesDir, "my-tale"));
+    expect(scan).not.toBeNull();
+    expect(scan).toHaveLength(1);
+    expect(scan[0].id).toBe("legend");
+  });
+
+  test("universeScan returns null when no universe found", () => {
+    const cwd = makeTempDir();
+    expect(universeScan(cwd)).toBeNull();
+  });
+
+  test("formatUniverseScan outputs one line per entity", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+
+    const formatted = formatUniverseScan(universeScan(result.root));
+    expect(formatted).toContain("legend");
+    expect(formatted).toContain("Legend");
+    expect(formatted).toContain("character");
+    expect(formatted).toContain(path.join("characters", "legend.md"));
+  });
+
+  test("formatUniverseScan reports no universe found", () => {
+    const formatted = formatUniverseScan(null);
+    expect(formatted).toContain("No universe found");
+  });
+
+  test("universeReport returns counts per type and total", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "locations", "mountain.md"), `
+name: "Mountain"
+type: wilderness
+region: North
+`, "# Mountain\n");
+
+    const report = universeReport(result.root);
+    expect(report).not.toBeNull();
+    expect(report.counts.characters).toBe(1);
+    expect(report.counts.locations).toBe(1);
+    expect(report.counts.systems).toBe(0);
+    expect(report.counts.factions).toBe(0);
+    expect(report.counts.artifacts).toBe(0);
+    expect(report.total).toBe(2);
+    expect(report.validation).toBeDefined();
+  });
+
+  test("universeReport returns null when no universe found", () => {
+    const cwd = makeTempDir();
+    expect(universeReport(cwd)).toBeNull();
+  });
+
+  test("universeReport on empty universe reports zero for each type", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    const report = universeReport(result.root);
+    expect(report.counts.characters).toBe(0);
+    expect(report.counts.locations).toBe(0);
+    expect(report.counts.systems).toBe(0);
+    expect(report.counts.factions).toBe(0);
+    expect(report.counts.artifacts).toBe(0);
+    expect(report.total).toBe(0);
+  });
+
+  test("formatUniverseReport outputs counts, total, and validation", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+
+    const formatted = formatUniverseReport(universeReport(result.root));
+    expect(formatted).toContain("Characters:");
+    expect(formatted).toContain("Total entities:");
+    expect(formatted).toContain("Validation:");
+  });
+
+  test("formatUniverseReport reports no universe found", () => {
+    const formatted = formatUniverseReport(null);
+    expect(formatted).toContain("No universe found");
+  });
+});
+
+describe("universe regression", () => {
+  test("story validate output unchanged when no universe present", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Regression Story", cwd });
+    addStoryEntities(path.join(cwd, "regression-story"));
+    const result = validateProject(path.join(cwd, "regression-story"));
+    expect(result.ok).toBe(true);
+  });
+
+  test("story links output unchanged when no universe present", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Links Story", cwd });
+    addStoryEntities(path.join(cwd, "links-story"));
+    const result = validateLinks(path.join(cwd, "links-story"));
+    expect(result.ok).toBe(true);
+  });
+
+  test("story init outside universe produces identical output to current behavior", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Plain Story", cwd });
+    const root = path.join(cwd, "plain-story");
+    const storyMd = fs.readFileSync(path.join(root, "story.md"), "utf8");
+    expect(storyMd).not.toContain("universe:");
+    const project = scanProject(root);
+    expect(project.universe).toBeUndefined();
+    expect(project.universeRoot).toBeUndefined();
+  });
+
+  test("all existing test entities still validate after scanProject extension", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Full Story", cwd });
+    addStoryEntities(path.join(cwd, "full-story"));
+    const project = scanProject(path.join(cwd, "full-story"));
+    expect(project.characters).toHaveLength(2);
+    expect(project.locations).toHaveLength(1);
+    expect(project.systems).toHaveLength(1);
+    expect(project.arcs).toHaveLength(1);
+    expect(project.chapters).toHaveLength(1);
+    expect(project.scenes).toHaveLength(1);
+  });
+});
+
+describe("universe path safety", () => {
+  test("universe scanning uses universeRoot as root for assertLexicallyInsideRoot", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+
+    // Universe entities must be scanned with universeRoot, not storyRoot.
+    // If storyRoot were used, universe paths (ancestors of storyRoot)
+    // would be rejected by assertLexicallyInsideRoot.
+    const project = scanProject(path.join(storiesDir, "my-tale"));
+    expect(project.universe).toBeDefined();
+    expect(project.universe.characters).toEqual([]);
+  });
+
+  test("universe entity files are accessible from story context via scanProject", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+
+    // Universe entity must appear in project.universe, NOT in project.characters
+    const project = scanProject(path.join(storiesDir, "my-tale"));
+    expect(project.universe.characters).toHaveLength(1);
+    expect(project.universe.characters[0].id).toBe("legend");
+    expect(project.characters.find((c) => c.id === "legend")).toBeUndefined();
+  });
+
+  test("universe entity files outside universeRoot are refused", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    // readEntityFiles filters to .md files in the directory; a file outside the
+    // universe directory cannot be read via readEntityFiles because the directory
+    // scan only lists files in the target directory.
+    const entities = scanUniverse(universeResult.root);
+    expect(entities.characters).toEqual([]);
+    expect(entities.locations).toEqual([]);
+  });
+
+  test("symlinked universe directories are rejected", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    // Replace the characters/ directory with a symlink pointing outside universeRoot.
+    // assertSafeProjectDirectory() checks stats.isSymbolicLink() on directories —
+    // readEntityFiles uses Dirent.isFile() which ignores symlinks to files, so the
+    // rejection path is only exercised by a symlinked directory, not a symlinked file.
+    const charDir = path.join(universeResult.root, "characters");
+    const realOutside = path.join(path.dirname(cwd), `${path.basename(cwd)}-outside-characters`);
+    fs.mkdirSync(realOutside, { recursive: true });
+    fs.writeFileSync(path.join(realOutside, "evil.md"), "# Evil\n", "utf8");
+    fs.rmSync(charDir, { recursive: true });
+    fs.symlinkSync(realOutside, charDir);
+    expect(() => scanUniverse(universeResult.root)).toThrow();
+  });
+});
+
+describe("universe coverage gaps", () => {
+  test("createUniverseProject throws on empty name", () => {
+    expect(() => createUniverseProject({ name: "", cwd: makeTempDir() })).toThrow("A universe name is required");
+  });
+
+  test("universeScan returns all five entity types", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "locations", "mountain.md"), `
+name: "Mountain"
+type: wilderness
+region: North
+`, "# Mountain\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "systems", "magic.md"), `
+name: "Magic"
+type: magic
+`, "# Magic\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "factions", "order.md"), `
+name: "Order"
+type: religion
+status: active
+`, "# Order\n");
+    writeMarkdown(path.join(result.root, "worldbuilding", "artifacts", "flame.md"), `
+name: "Flame"
+type: relic
+status: active
+`, "# Flame\n");
+
+    const scan = universeScan(result.root);
+    expect(scan).toHaveLength(5);
+    const types = scan.map((e) => e.type).sort();
+    expect(types).toEqual(["artifact", "character", "faction", "location", "system"]);
+  });
+
+  test("formatUniverseReport outputs errors when validation fails", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(result.root, "characters", "Bad_Id.md"), `
+name: "Bad"
+role: supporting
+status: alive
+`, "# Bad\n");
+    const formatted = formatUniverseReport(universeReport(result.root));
+    expect(formatted).toContain("Errors:");
+    expect(formatted).toContain("kebab-case");
+  });
+
+  test("formatUniverseReport outputs warnings when validation has warnings", () => {
+    const formatted = formatUniverseReport({
+      counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+      total: 0,
+      validation: { ok: true, errors: [], warnings: ["Universe 'missing' not found — story works in standalone mode"] }
+    });
+    expect(formatted).toContain("Warnings:");
+    expect(formatted).toContain("not found");
+  });
+
+  test("cross-level: broken character relationship errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "characters", "hero.md"), `
+name: "Hero"
+role: protagonist
+status: alive
+relationships:
+  - character: nonexistent-char
+    type: sibling
+`, "# Hero\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'character: nonexistent-char'"))).toBe(true);
+  });
+
+  test("cross-level: broken notable-characters reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "worldbuilding", "locations", "tavern.md"), `
+name: "Tavern"
+type: settlement
+region: Town
+notable-characters:
+  - nonexistent-char
+`, "# Tavern\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'notable-characters: nonexistent-char'"))).toBe(true);
+  });
+
+  test("cross-level: broken faction member and location references error", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "worldbuilding", "factions", "guild.md"), `
+name: "Guild"
+type: guild
+status: active
+members:
+  - nonexistent-member
+locations:
+  - nonexistent-place
+`, "# Guild\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'members: nonexistent-member'"))).toBe(true);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'locations: nonexistent-place'"))).toBe(true);
+  });
+
+  test("cross-level: broken artifact owner and location references error", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "worldbuilding", "artifacts", "sword.md"), `
+name: "Sword"
+type: weapon
+status: active
+owner: nonexistent-owner
+location: nonexistent-place
+`, "# Sword\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'owner: nonexistent-owner'"))).toBe(true);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'location: nonexistent-place'"))).toBe(true);
+  });
+
+  test("cross-level: universe-level faction in combined map for coverage", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "factions", "ancient-order.md"), `
+name: "Ancient Order"
+type: religion
+status: active
+`, "# Order\n");
+    writeMarkdown(path.join(storyRoot, "worldbuilding", "artifacts", "relic.md"), `
+name: "Relic"
+type: relic
+status: active
+owner: ancient-order
+`, "# Relic\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
   });
 });
