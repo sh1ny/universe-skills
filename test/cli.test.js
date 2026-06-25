@@ -343,6 +343,15 @@ status: alive
     expect(result.code).toBe(1);
     expect(result.err).toContain("A universe name is required");
   });
+  test("story universe init passes genre, tone, and theme options", () => {
+    const cwd = makeTempDir();
+    const result = invoke(cwd, ["universe", "init", "My", "Universe", "--genre", "fantasy", "--tone", "dark", "--theme", "hope"]);
+    expect(result.code).toBe(0);
+    const universeMd = fs.readFileSync(path.join(cwd, "universe.md"), "utf8");
+    expect(universeMd).toContain("genre: fantasy");
+    expect(universeMd).toContain("tone: dark");
+    expect(universeMd).toContain("hope");
+  });
 });
 
 describe("cli universe story-root invocation", () => {

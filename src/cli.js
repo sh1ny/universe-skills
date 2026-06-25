@@ -60,7 +60,8 @@ Commands:
 Options:
   --title <name>            Story title for import
   --dir <path>              Target directory for init or import
-  --genre <name>            Story genre for init
+  --genre <name>            Genre for story or universe init
+  --tone <name>             Tone for universe init
   --sub-genre <name>        Story sub-genre for init
   --setting-era <name>      Setting era for init
   --theme <name>            Add a theme for init; repeatable
@@ -257,7 +258,14 @@ export function runCli(argv, io) {
         if (!name) {
           throw new Error("A universe name is required");
         }
-        const result = createUniverseProject({ name, cwd, dir: parsed.options.dir });
+        const result = createUniverseProject({
+          name,
+          cwd,
+          dir: parsed.options.dir,
+          genre: parsed.options.genre,
+          tone: parsed.options.tone,
+          themes: collectThemes(parsed.options)
+        });
         io.stdout.write(`Created universe project: ${result.root}\n`);
         return 0;
       }

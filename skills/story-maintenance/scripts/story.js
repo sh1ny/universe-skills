@@ -571,7 +571,7 @@ function createStoryProject(options) {
   let universeId = null;
   if (universeRoot) {
     const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-    if (universeMd.data.name) {
+    if (typeof universeMd.data.name === "string" && universeMd.data.name !== "") {
       universeId = kebabCase(universeMd.data.name);
     }
   }
@@ -764,7 +764,7 @@ function scanProject(root) {
     const universeRoot = resolveUniverseRoot(projectRoot);
     if (universeRoot) {
       const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
       if (!resolvedUniverseId || resolvedUniverseId === story.data.universe) {
         project.universe = scanUniverse(universeRoot);
         project.universeRoot = universeRoot;
@@ -1045,12 +1045,9 @@ function validateLinks(root) {
   }
   return { ok: errors.length === 0, errors, warnings };
 }
-function validateUniverseIds(entities, type, errors) {
+function validateUniverseIdUniqueness(entities, type, errors) {
   const seen = new Set;
   for (const entity of entities) {
-    if (!isKebabId(entity.id)) {
-      errors.push(`Universe entity id must be kebab-case: ${entity.id} (${type})`);
-    }
     if (seen.has(entity.id)) {
       errors.push(`Duplicate entity id '${entity.id}' in universe ${type}`);
     }
@@ -1061,6 +1058,10 @@ function validateUniverse(root) {
   const resolvedRoot = path2.resolve(root);
   const errors = [];
   const warnings = [];
+  if (!fs.existsSync(resolvedRoot)) {
+    errors.push(`Path does not exist: ${resolvedRoot}`);
+    return { ok: false, errors, warnings };
+  }
   const isStoryRoot = fs.existsSync(path2.join(resolvedRoot, "story.md"));
   let storyData = null;
   if (isStoryRoot) {
@@ -1074,13 +1075,22 @@ function validateUniverse(root) {
       return { ok: true, errors, warnings };
     }
     const universeMd2 = readMarkdown(path2.join(universeRoot2, "universe.md"), universeRoot2);
-    const resolvedUniverseId = universeMd2.data.name ? kebabCase(universeMd2.data.name) : null;
+    if (universeMd2.data.name !== undefined && (typeof universeMd2.data.name !== "string" || universeMd2.data.name === "")) {
+      errors.push(`universe.md name must be a non-empty scalar`);
+    }
+    const resolvedUniverseId = typeof universeMd2.data.name === "string" && universeMd2.data.name !== "" ? kebabCase(universeMd2.data.name) : null;
     if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
       warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
       return { ok: true, errors, warnings };
     }
   }
-  const universeRoot = resolveUniverseRoot(resolvedRoot);
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  if (universeRoot === null && !isStoryRoot) {
+    const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
+    if (hasScaffoldPath) {
+      universeRoot = resolvedRoot;
+    }
+  }
   if (universeRoot === null || isStoryRoot && !storyData.universe) {
     return { ok: true, errors, warnings };
   }
@@ -1090,16 +1100,21 @@ function validateUniverse(root) {
       errors.push(`Missing required universe path: ${requiredPath}`);
     }
   }
-  const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-  for (const field of UNIVERSE_REQUIRED_FRONTMATTER) {
-    if (universeMd.data[field] === undefined || universeMd.data[field] === "") {
-      errors.push(`universe.md missing required frontmatter field: ${field}`);
+  const universeMdPath = path2.join(universeRoot, "universe.md");
+  const hasUniverseMd = fs.existsSync(universeMdPath);
+  const universeMd = hasUniverseMd ? readMarkdown(universeMdPath, universeRoot) : { data: {} };
+  if (hasUniverseMd) {
+    for (const field of UNIVERSE_REQUIRED_FRONTMATTER) {
+      if (universeMd.data[field] === undefined || universeMd.data[field] === "") {
+        errors.push(`universe.md missing required frontmatter field: ${field}`);
+      }
     }
+    if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
+      errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+    }
+    requireScalar(universeMd.data, "name", "universe.md", errors);
   }
-  if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
-    errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
-  }
-  const universeId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+  const universeId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
   for (const [relativePath, expectedType] of UNIVERSE_INDEX_SCHEMAS) {
     const fullPath = path2.join(universeRoot, relativePath);
     if (!fs.existsSync(fullPath)) {
@@ -1118,7 +1133,63 @@ function validateUniverse(root) {
   }
   const entityTypes = ["characters", "locations", "systems", "factions", "artifacts"];
   for (const type of entityTypes) {
-    validateUniverseIds(universeEntities[type], type, errors);
+    validateUniverseIdUniqueness(universeEntities[type], type, errors);
+  }
+  const universeProject = {
+    root: universeRoot,
+    characters: universeEntities.characters,
+    locations: universeEntities.locations,
+    systems: universeEntities.systems,
+    factions: universeEntities.factions,
+    artifacts: universeEntities.artifacts
+  };
+  validateCharacters(universeProject, errors);
+  validateLocations(universeProject, errors);
+  validateSystems(universeProject, errors);
+  validateFactions(universeProject, errors);
+  validateArtifacts(universeProject, errors);
+  const uniCharacters = new Map(universeEntities.characters.map((c) => [c.id, c]));
+  const uniLocations = new Map(universeEntities.locations.map((l) => [l.id, l]));
+  const uniFactions = new Map(universeEntities.factions.map((f) => [f.id, f]));
+  const uniArtifacts = new Map(universeEntities.artifacts.map((a) => [a.id, a]));
+  for (const character of universeEntities.characters) {
+    for (const locationId of character.locations) {
+      if (!uniLocations.has(locationId)) {
+        errors.push(`universe ${relative2(universeProject, character.file)} references missing location ${locationId}`);
+      }
+    }
+    for (const relationship of character.relationships) {
+      if (!uniCharacters.has(relationship.character)) {
+        errors.push(`universe ${relative2(universeProject, character.file)} references missing character ${relationship.character}`);
+      }
+    }
+  }
+  for (const location of universeEntities.locations) {
+    for (const characterId of location.notableCharacters) {
+      if (!uniCharacters.has(characterId)) {
+        errors.push(`universe ${relative2(universeProject, location.file)} references missing character ${characterId}`);
+      }
+    }
+  }
+  for (const faction of universeEntities.factions) {
+    for (const characterId of faction.members) {
+      if (!uniCharacters.has(characterId)) {
+        errors.push(`universe ${relative2(universeProject, faction.file)} references missing member ${characterId}`);
+      }
+    }
+    for (const locationId of faction.locations) {
+      if (!uniLocations.has(locationId)) {
+        errors.push(`universe ${relative2(universeProject, faction.file)} references missing location ${locationId}`);
+      }
+    }
+  }
+  for (const artifact of universeEntities.artifacts) {
+    if (artifact.owner && !uniCharacters.has(artifact.owner) && !uniFactions.has(artifact.owner)) {
+      errors.push(`universe ${relative2(universeProject, artifact.file)} references missing owner ${artifact.owner}`);
+    }
+    if (artifact.location && !uniLocations.has(artifact.location)) {
+      errors.push(`universe ${relative2(universeProject, artifact.file)} references missing location ${artifact.location}`);
+    }
   }
   if (isStoryRoot && storyData.universe) {
     const project = scanProject(resolvedRoot);
@@ -1431,7 +1502,7 @@ function universeReport(root) {
     const storyMd = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
     if (storyMd.data.universe) {
       const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
       if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
         validation = validateUniverse(resolvedRoot);
       } else {
@@ -2843,6 +2914,12 @@ function validateStoryFrontmatter(project, errors) {
   if (data["schema-version"] !== undefined && data["schema-version"] !== STORY_SCHEMA_VERSION) {
     errors.push(`story.md schema-version must be ${STORY_SCHEMA_VERSION}`);
   }
+  if (data.universe !== undefined) {
+    requireScalar(data, "universe", "story.md", errors);
+    if (typeof data.universe !== "string" || !isKebabId(data.universe)) {
+      errors.push(`story.md universe must be a kebab-case id`);
+    }
+  }
 }
 function validateIndexFrontmatter(project, errors) {
   for (const [relativePath, expectedType] of INDEX_SCHEMAS) {
@@ -3421,7 +3498,8 @@ Commands:
 Options:
   --title <name>            Story title for import
   --dir <path>              Target directory for init or import
-  --genre <name>            Story genre for init
+  --genre <name>            Genre for story or universe init
+  --tone <name>             Tone for universe init
   --sub-genre <name>        Story sub-genre for init
   --setting-era <name>      Setting era for init
   --theme <name>            Add a theme for init; repeatable
@@ -3610,7 +3688,14 @@ function runCli(argv, io) {
         if (!name) {
           throw new Error("A universe name is required");
         }
-        const result = createUniverseProject({ name, cwd, dir: parsed.options.dir });
+        const result = createUniverseProject({
+          name,
+          cwd,
+          dir: parsed.options.dir,
+          genre: parsed.options.genre,
+          tone: parsed.options.tone,
+          themes: collectThemes(parsed.options)
+        });
         io.stdout.write(`Created universe project: ${result.root}
 `);
         return 0;

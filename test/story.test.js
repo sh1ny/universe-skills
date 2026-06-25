@@ -31,7 +31,8 @@ import {
   validateLinks,
   validateProject,
   validateUniverse,
-  validateUniverseIds
+  validateUniverseIds,
+  validateUniverseIdUniqueness
 } from "../src/story.js";
 import { makeTempDir, writeMarkdown } from "./helpers.js";
 
@@ -1273,6 +1274,16 @@ status: alive
     expect(errors.length).toBe(1);
     expect(errors[0]).toBe("Duplicate entity id 'the-old-gods' in universe characters");
   });
+
+  test("validateUniverseIds catches non-kebab-case ids with synthetic array", () => {
+    const errors = [];
+    validateUniverseIds(
+      [{ id: "Bad_Id", file: "a", name: "Bad" }],
+      "characters",
+      errors
+    );
+    expect(errors.some((e) => e.includes("kebab-case"))).toBe(true);
+  });
 });
 
 describe("universe scan and report", () => {
@@ -2511,5 +2522,251 @@ word-count: 0
 `, "## Chapter Text\n\nHello world.");
     const result = checkProjectContinuity(storyRoot);
     expect(result.errors.some((e) => e.includes("unused-legend"))).toBe(false);
+  });
+  test("validateUniverse rejects invalid character role enum", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: cameo
+status: alive
+`, "# Legend\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("role") && e.includes("unsupported value"))).toBe(true);
+  });
+
+  test("validateUniverse rejects invalid character status enum", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: vanished
+`, "# Legend\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("status") && e.includes("unsupported value"))).toBe(true);
+  });
+
+  test("validateUniverse rejects invalid relationships format", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+relationships: nope
+`, "# Legend\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("relationships") && e.includes("must be a list"))).toBe(true);
+  });
+
+  test("validateUniverse rejects missing required fields on universe entity", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+`, "# Mountain\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("is missing frontmatter field") && e.includes("type"))).toBe(true);
+  });
+
+  test("validateUniverse rejects invalid artifact type enum", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "artifacts", "ancient-relic.md"), `
+name: "Ancient Relic"
+type: gadget
+status: active
+`, "# Relic\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("type") && e.includes("unsupported value"))).toBe(true);
+  });
+
+  test("validateUniverse rejects invalid faction type enum", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "factions", "ancient-order.md"), `
+name: "Ancient Order"
+type: cult
+status: active
+`, "# Order\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("type") && e.includes("unsupported value"))).toBe(true);
+  });
+  test("validateUniverseIdUniqueness catches duplicate ids with synthetic array", () => {
+    const errors = [];
+    validateUniverseIdUniqueness(
+      [{ id: "legend", file: "a", name: "L1" }, { id: "legend", file: "b", name: "L2" }],
+      "characters",
+      errors
+    );
+    expect(errors.length).toBe(1);
+    expect(errors[0]).toBe("Duplicate entity id 'legend' in universe characters");
+  });
+
+  test("story validate rejects non-kebab universe field", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: Aetheria"), "utf8");
+    const result = validateProject(storyRoot);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes("universe must be a kebab-case id"))).toBe(true);
+  });
+
+  test("story validate rejects non-scalar universe field", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: 123"), "utf8");
+    const result = validateProject(storyRoot);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((e) => e.includes("universe must be a kebab-case id"))).toBe(true);
+  });
+  test("validateUniverse rejects non-scalar universe name", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, content.replace(/name: Aetheria/, "name:\n  - Aetheria"), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("name must be a scalar") || e.includes("name must be a non-empty scalar"))).toBe(true);
+  });
+  test("validateUniverse from story root rejects non-scalar universe name", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, content.replace(/name: Aetheria/, "name:\n  - Aetheria"), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.errors.some((e) => e.includes("name must be a non-empty scalar") || e.includes("name must be a scalar"))).toBe(true);
+  });
+
+  test("validateUniverse rejects nonexistent target path", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const nonexistentPath = path.join(universeResult.root, "stories", "typo-story");
+    const validation = validateUniverse(nonexistentPath);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Path does not exist"))).toBe(true);
+  });
+  test("validateUniverse reports missing universe.md in scaffold with other paths", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    fs.rmSync(path.join(universeResult.root, "universe.md"));
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Missing required universe path: universe.md"))).toBe(true);
+  });
+
+  test("validateUniverse rejects broken universe-internal character location ref", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+locations:
+  - nonexistent-place
+`, "# Legend\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("references missing location nonexistent-place"))).toBe(true);
+  });
+
+  test("validateUniverse rejects broken universe-internal artifact owner ref", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "artifacts", "relic.md"), `
+name: "Relic"
+type: relic
+status: active
+owner: ghost
+`, "# Relic\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("references missing owner ghost"))).toBe(true);
+  });
+  test("validateUniverse rejects broken universe-internal character relationship ref", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+relationships:
+  - character: ghost
+    type: ally
+`, "# Legend\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("references missing character ghost"))).toBe(true);
+  });
+
+  test("validateUniverse rejects broken universe-internal location notable-character ref", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "locations", "mountain.md"), `
+name: "Mountain"
+type: wilderness
+notable-characters:
+  - ghost
+`, "# Mountain\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("references missing character ghost"))).toBe(true);
+  });
+
+  test("validateUniverse rejects broken universe-internal faction member and location refs", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "factions", "order.md"), `
+name: "Order"
+type: religion
+status: active
+members:
+  - ghost
+locations:
+  - nowhere
+`, "# Order\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("references missing member ghost"))).toBe(true);
+    expect(validation.errors.some((e) => e.includes("references missing location nowhere"))).toBe(true);
+  });
+
+  test("validateUniverse rejects broken universe-internal artifact location ref", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "artifacts", "relic.md"), `
+name: "Relic"
+type: relic
+status: active
+location: nowhere
+`, "# Relic\n");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("references missing location nowhere"))).toBe(true);
   });
 });

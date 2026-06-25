@@ -122,7 +122,7 @@ export function createStoryProject(options) {
   let universeId = null;
   if (universeRoot) {
     const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-    if (universeMd.data.name) {
+    if (typeof universeMd.data.name === "string" && universeMd.data.name !== "") {
       universeId = kebabCase(universeMd.data.name);
     }
   }
@@ -331,7 +331,7 @@ export function scanProject(root) {
     const universeRoot = resolveUniverseRoot(projectRoot);
     if (universeRoot) {
       const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
       // Only attach the universe if the resolved id matches the story's opt-in field.
       // A mismatch means the story was moved under the wrong universe — treat as
       // standalone so continuity/report/doctor don't validate against wrong entities.
@@ -656,10 +656,25 @@ export function validateUniverseIds(entities, type, errors) {
   }
 }
 
+export function validateUniverseIdUniqueness(entities, type, errors) {
+  const seen = new Set();
+  for (const entity of entities) {
+    if (seen.has(entity.id)) {
+      errors.push(`Duplicate entity id '${entity.id}' in universe ${type}`);
+    }
+    seen.add(entity.id);
+  }
+}
+
+
 export function validateUniverse(root) {
   const resolvedRoot = path.resolve(root);
   const errors = [];
   const warnings = [];
+  if (!fs.existsSync(resolvedRoot)) {
+    errors.push(`Path does not exist: ${resolvedRoot}`);
+    return { ok: false, errors, warnings };
+  }
 
   // Determine if we are in a story root (has story.md)
   const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
@@ -682,17 +697,28 @@ export function validateUniverse(root) {
     // not found" — standalone mode — rather than running cross-level checks
     // against the wrong shared entities.
     const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-    const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+    if (universeMd.data.name !== undefined && (typeof universeMd.data.name !== "string" || universeMd.data.name === "")) {
+      errors.push(`universe.md name must be a non-empty scalar`);
+    }
+    const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
     if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
       warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
       return { ok: true, errors, warnings };
     }
   }
-  // If no story.md and no universe.md, nothing to validate.
-  // For story roots without the universe opt-in field, skip universe
-  // scanning entirely — the story may be under an ancestor universe.md
-  // but hasn't opted in, so its ancestor should not be validated here.
-  const universeRoot = resolveUniverseRoot(resolvedRoot);
+  // Resolve the universe root. If resolveUniverseRoot returns null but
+  // the target directory contains other universe scaffold paths (e.g.
+  // characters/_index.md), treat it as the universe root so the
+  // required-path loop can report the missing universe.md.
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  if (universeRoot === null && !isStoryRoot) {
+    const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
+      p !== "universe.md" && fs.existsSync(path.join(resolvedRoot, p))
+    );
+    if (hasScaffoldPath) {
+      universeRoot = resolvedRoot;
+    }
+  }
   if (universeRoot === null || (isStoryRoot && !storyData.universe)) {
     return { ok: true, errors, warnings };
   }
@@ -709,19 +735,22 @@ export function validateUniverse(root) {
   }
 
   // Rule 4.5: universe.md frontmatter completeness check
-  const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-  for (const field of UNIVERSE_REQUIRED_FRONTMATTER) {
-    if (universeMd.data[field] === undefined || universeMd.data[field] === "") {
-      errors.push(`universe.md missing required frontmatter field: ${field}`);
+  // Skip if universe.md is missing (already reported by required-path loop)
+  const universeMdPath = path.join(universeRoot, "universe.md");
+  const hasUniverseMd = fs.existsSync(universeMdPath);
+  const universeMd = hasUniverseMd ? readMarkdown(universeMdPath, universeRoot) : { data: {} };
+  if (hasUniverseMd) {
+    for (const field of UNIVERSE_REQUIRED_FRONTMATTER) {
+      if (universeMd.data[field] === undefined || universeMd.data[field] === "") {
+        errors.push(`universe.md missing required frontmatter field: ${field}`);
+      }
     }
+    if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
+      errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+    }
+    requireScalar(universeMd.data, "name", "universe.md", errors);
   }
-  if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
-    errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
-  }
-  // Rule 4.5b: Universe registry frontmatter validation — check `type` and
-  // `story` fields on _index.md files. Skip missing files (already reported
-  // by the required-paths loop above) so readMarkdown doesn't throw.
-  const universeId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+  const universeId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
   for (const [relativePath, expectedType] of UNIVERSE_INDEX_SCHEMAS) {
     const fullPath = path.join(universeRoot, relativePath);
     if (!fs.existsSync(fullPath)) {
@@ -739,12 +768,74 @@ export function validateUniverse(root) {
     }
   }
 
-  // Rule 4.3: Universe entity id validation — kebab-case and uniqueness.
-  // Use a testable helper so the uniqueness branch can be covered with
-  // synthetic arrays without needing duplicate filenames on disk.
+  // Rule 4.3: Universe entity id uniqueness. Kebab-case is checked by
+  // validateEntityId inside the entity validators below (Rule 4.3b).
   const entityTypes = ["characters", "locations", "systems", "factions", "artifacts"];
   for (const type of entityTypes) {
-    validateUniverseIds(universeEntities[type], type, errors);
+    validateUniverseIdUniqueness(universeEntities[type], type, errors);
+  }
+  // Rule 4.3b: Universe entity frontmatter validation — run the same
+  // entity validators used for story-level entities against universe entities.
+  const universeProject = {
+    root: universeRoot,
+    characters: universeEntities.characters,
+    locations: universeEntities.locations,
+    systems: universeEntities.systems,
+    factions: universeEntities.factions,
+    artifacts: universeEntities.artifacts
+  };
+  validateCharacters(universeProject, errors);
+  validateLocations(universeProject, errors);
+  validateSystems(universeProject, errors);
+  validateFactions(universeProject, errors);
+  validateArtifacts(universeProject, errors);
+
+  // Rule 4.3c: Universe-internal reference resolution — check that
+  // references between universe entities resolve (character locations,
+  // faction members/locations, artifact owners/locations, location
+  // notable-characters). Same-level backlink enforcement is NOT applied.
+  const uniCharacters = new Map(universeEntities.characters.map((c) => [c.id, c]));
+  const uniLocations = new Map(universeEntities.locations.map((l) => [l.id, l]));
+  const uniFactions = new Map(universeEntities.factions.map((f) => [f.id, f]));
+  const uniArtifacts = new Map(universeEntities.artifacts.map((a) => [a.id, a]));
+  for (const character of universeEntities.characters) {
+    for (const locationId of character.locations) {
+      if (!uniLocations.has(locationId)) {
+        errors.push(`universe ${relative(universeProject, character.file)} references missing location ${locationId}`);
+      }
+    }
+    for (const relationship of character.relationships) {
+      if (!uniCharacters.has(relationship.character)) {
+        errors.push(`universe ${relative(universeProject, character.file)} references missing character ${relationship.character}`);
+      }
+    }
+  }
+  for (const location of universeEntities.locations) {
+    for (const characterId of location.notableCharacters) {
+      if (!uniCharacters.has(characterId)) {
+        errors.push(`universe ${relative(universeProject, location.file)} references missing character ${characterId}`);
+      }
+    }
+  }
+  for (const faction of universeEntities.factions) {
+    for (const characterId of faction.members) {
+      if (!uniCharacters.has(characterId)) {
+        errors.push(`universe ${relative(universeProject, faction.file)} references missing member ${characterId}`);
+      }
+    }
+    for (const locationId of faction.locations) {
+      if (!uniLocations.has(locationId)) {
+        errors.push(`universe ${relative(universeProject, faction.file)} references missing location ${locationId}`);
+      }
+    }
+  }
+  for (const artifact of universeEntities.artifacts) {
+    if (artifact.owner && !uniCharacters.has(artifact.owner) && !uniFactions.has(artifact.owner)) {
+      errors.push(`universe ${relative(universeProject, artifact.file)} references missing owner ${artifact.owner}`);
+    }
+    if (artifact.location && !uniLocations.has(artifact.location)) {
+      errors.push(`universe ${relative(universeProject, artifact.file)} references missing location ${artifact.location}`);
+    }
   }
 
   // Rules 4.2 and 4.4: Cross-level checks (only when story has opted into
@@ -1118,7 +1209,7 @@ export function universeReport(root) {
       // A mismatch means validateUniverse(storyRoot) would early-return ok
       // with a warning, hiding universe-level errors from the report.
       const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
       if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
         // Opted-in story with matching universe — validate cross-level refs.
         validation = validateUniverse(resolvedRoot);
@@ -2715,6 +2806,13 @@ function validateStoryFrontmatter(project, errors) {
 
   if (data["schema-version"] !== undefined && data["schema-version"] !== STORY_SCHEMA_VERSION) {
     errors.push(`story.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+  }
+
+  if (data.universe !== undefined) {
+    requireScalar(data, "universe", "story.md", errors);
+    if (typeof data.universe !== "string" || !isKebabId(data.universe)) {
+      errors.push(`story.md universe must be a kebab-case id`);
+    }
   }
 }
 
