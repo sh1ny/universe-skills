@@ -1678,4 +1678,310 @@ owner: ancient-order
     const validation = validateUniverse(storyRoot);
     expect(validation.ok).toBe(true);
   });
+  test("missing universe required path errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    // Delete a required index file
+    fs.rmSync(path.join(universeResult.root, "characters", "_index.md"));
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Missing required universe path: characters/_index.md"))).toBe(true);
+  });
+
+  test("missing universe required directory errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    // Delete a required directory
+    fs.rmSync(path.join(universeResult.root, "worldbuilding", "locations"), { recursive: true });
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Missing required universe path: worldbuilding/locations"))).toBe(true);
+  });
+
+  test("cross-level: broken chapter pov reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+pov: nonexistent-char
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'pov: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken chapter characters reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+characters:
+  - nonexistent-char
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'characters: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken chapter mentions reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+mentions:
+  - nonexistent-char
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'mentions: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken chapter locations reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+locations:
+  - nonexistent-place
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'locations: nonexistent-place' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken scene pov reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    writeMarkdown(path.join(storyRoot, "scenes", "chapter-01-scene-01.md"), `
+chapter: chapter-01
+scene: 1
+title: "Scene One"
+pov: nonexistent-char
+status: outline
+`, "## Scene Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'pov: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken scene location reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    writeMarkdown(path.join(storyRoot, "scenes", "chapter-01-scene-01.md"), `
+chapter: chapter-01
+scene: 1
+title: "Scene One"
+location: nonexistent-place
+status: outline
+`, "## Scene Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'location: nonexistent-place' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken scene characters reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    writeMarkdown(path.join(storyRoot, "scenes", "chapter-01-scene-01.md"), `
+chapter: chapter-01
+scene: 1
+title: "Scene One"
+characters:
+  - nonexistent-char
+status: outline
+`, "## Scene Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'characters: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken scene mentions reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    writeMarkdown(path.join(storyRoot, "scenes", "chapter-01-scene-01.md"), `
+chapter: chapter-01
+scene: 1
+title: "Scene One"
+mentions:
+  - nonexistent-char
+status: outline
+`, "## Scene Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'mentions: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken arc characters reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "plot", "arcs", "main-arc.md"), `
+name: "Main Arc"
+type: main
+status: active
+characters:
+  - nonexistent-char
+`, "# Main Arc\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'characters: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken question characters reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "continuity", "questions", "mystery.md"), `
+title: "The Mystery"
+status: open
+introduced: chapter-01
+characters:
+  - nonexistent-char
+`, "# The Mystery\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'characters: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken promise characters reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "continuity", "promises", "vow.md"), `
+title: "The Vow"
+status: planned
+planted: chapter-01
+characters:
+  - nonexistent-char
+`, "# The Vow\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'characters: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: universe-level character resolves chapter pov reference", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+pov: legend
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+  test("cross-level checks skipped when story has no universe frontmatter field", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // createStoryProject auto-detects the universe and writes `universe: aetheria`
+    // into story.md. Strip it to simulate a story that hasn't opted in.
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/^universe:.*\n/m, ""), "utf8");
+    // Story is under a universe directory but has NOT opted in via frontmatter.
+    // A broken chapter reference should NOT produce cross-level errors.
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+pov: nonexistent-char
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
 });

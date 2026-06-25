@@ -660,6 +660,14 @@ export function validateUniverse(root) {
 
   // Scan universe entities using universeRoot (NOT storyRoot — D12 path-safety)
   const universeEntities = scanUniverse(universeRoot);
+  // Rule 4.1: Universe scaffold path validation — every required path must exist.
+  // Without this, a partially deleted universe container (e.g. missing
+  // characters/_index.md) silently scans as empty and passes validation.
+  for (const requiredPath of UNIVERSE_REQUIRED_PATHS) {
+    if (!fs.existsSync(path.join(universeRoot, requiredPath))) {
+      errors.push(`Missing required universe path: ${requiredPath}`);
+    }
+  }
 
   // Rule 4.5: universe.md frontmatter completeness check
   const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
@@ -677,8 +685,9 @@ export function validateUniverse(root) {
     validateUniverseIds(universeEntities[type], type, errors);
   }
 
-  // Rules 4.2 and 4.4: Cross-level checks (only when story context is available)
-  if (isStoryRoot) {
+  // Rules 4.2 and 4.4: Cross-level checks (only when story has opted into
+  // a universe via the `universe` frontmatter field — not mere directory proximity)
+  if (isStoryRoot && storyData.universe) {
     const project = scanProject(resolvedRoot);
 
     // Rule 4.4: No-shadowing validation
@@ -751,6 +760,74 @@ export function validateUniverse(root) {
       }
       if (artifact.location && !combinedLocations.has(artifact.location)) {
         errors.push(`Cross-level reference 'location: ${artifact.location}' does not resolve at story or universe level`);
+      }
+    }
+    // Rule 4.2: Manuscript references — chapters and scenes reference characters
+    // and locations in frontmatter. These must resolve against the combined
+    // story+universe maps, not just the story-only maps that validateLinks checks.
+    for (const chapter of project.chapters) {
+      if (chapter.pov && !combinedCharacters.has(chapter.pov)) {
+        errors.push(`Cross-level reference 'pov: ${chapter.pov}' does not resolve at story or universe level`);
+      }
+      for (const characterId of chapter.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const characterId of chapter.mentions) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'mentions: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const locationId of chapter.locations) {
+        if (!combinedLocations.has(locationId)) {
+          errors.push(`Cross-level reference 'locations: ${locationId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const scene of project.scenes) {
+      if (scene.pov && !combinedCharacters.has(scene.pov)) {
+        errors.push(`Cross-level reference 'pov: ${scene.pov}' does not resolve at story or universe level`);
+      }
+      if (scene.location && !combinedLocations.has(scene.location)) {
+        errors.push(`Cross-level reference 'location: ${scene.location}' does not resolve at story or universe level`);
+      }
+      for (const characterId of scene.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const characterId of scene.mentions) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'mentions: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    // Rule 4.2: Continuity entity references — arcs, questions, and promises
+    // all carry character lists that must resolve at story or universe level.
+    for (const arc of project.arcs) {
+      for (const characterId of arc.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const question of project.questions) {
+      for (const characterId of question.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const promise of project.promises) {
+      for (const characterId of promise.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
       }
     }
 
