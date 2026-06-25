@@ -67,8 +67,10 @@ locations:
 5. **Validate the universe** after adding entities:
 
 ```shell
-story universe validate .
+story universe validate my-first-story
 ```
+
+> **Important**: Run `story universe validate` from the **story root** (or pass the story path) to trigger cross-level reference checks. Running it from the `stories/` parent directory only validates the universe scaffold itself — it does not check story→universe references.
 
 This checks:
 - Universe entity ids are kebab-case and unique

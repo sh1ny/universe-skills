@@ -250,7 +250,29 @@ function checkContinuity(project) {
   return { ok: errors.length === 0, errors, warnings };
 }
 function checkCharacterDeaths(project, context, errors) {
-  for (const character of project.characters) {
+  const deathCheckCharacters = [...project.characters];
+  const deathCheckIds = new Set(project.characters.map((c) => c.id));
+  if (project.universe) {
+    const castIds = new Set;
+    for (const chapter of project.chapters) {
+      if (chapter.pov)
+        castIds.add(chapter.pov);
+      for (const id of chapter.characters)
+        castIds.add(id);
+    }
+    for (const scene of project.scenes) {
+      if (scene.pov)
+        castIds.add(scene.pov);
+      for (const id of scene.characters)
+        castIds.add(id);
+    }
+    for (const character of project.universe.characters) {
+      if (castIds.has(character.id) && !deathCheckIds.has(character.id)) {
+        deathCheckCharacters.push(character);
+      }
+    }
+  }
+  for (const character of deathCheckCharacters) {
     if (!character.diedIn) {
       continue;
     }

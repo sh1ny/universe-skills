@@ -2419,4 +2419,97 @@ relationships:
     expect(result.errors.some((e) => e.includes("missing character legend"))).toBe(false);
     expect(result.errors.some((e) => e.includes("backlink"))).toBe(false);
   });
+  test("checkContinuity enforces universe character death in story chapters", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: deceased
+died-in: chapter-01
+`, "# Legend\n");
+    // Chapter 1 (death chapter) and chapter 2 (posthumous appearance)
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+pov: legend
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-02.md"), `
+number: 2
+title: "Chapter Two"
+characters:
+  - legend
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nGoodbye world.");
+    const result = checkProjectContinuity(storyRoot);
+    expect(result.errors.some((e) => e.includes("legend") && e.includes("died in"))).toBe(true);
+  });
+
+  test("checkContinuity enforces universe character death via scene cast", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: deceased
+died-in: chapter-01
+`, "# Legend\n");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-02.md"), `
+number: 2
+title: "Chapter Two"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nGoodbye world.");
+    // Scene in chapter 2 casts legend — posthumous appearance via scene
+    writeMarkdown(path.join(storyRoot, "scenes", "chapter-02-scene-01.md"), `
+chapter: chapter-02
+scene: 1
+title: "Scene One"
+pov: legend
+status: outline
+`, "## Scene Text\n\nHello world.");
+    const result = checkProjectContinuity(storyRoot);
+    expect(result.errors.some((e) => e.includes("legend") && e.includes("died in"))).toBe(true);
+  });
+
+  test("checkContinuity does not death-check uncast universe characters", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Universe character with died-in, but not cast in any chapter/scene
+    writeMarkdown(path.join(universeResult.root, "characters", "unused-legend.md"), `
+name: "Unused Legend"
+role: supporting
+status: alive
+died-in: chapter-01
+`, "# Unused Legend\n");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const result = checkProjectContinuity(storyRoot);
+    expect(result.errors.some((e) => e.includes("unused-legend"))).toBe(false);
+  });
 });
