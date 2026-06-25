@@ -1061,13 +1061,44 @@ export function formatUniverseScan(result) {
 }
 
 export function universeReport(root) {
-  const universeRoot = resolveUniverseRoot(root);
+  const resolvedRoot = path.resolve(root);
+  const universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
     return null;
   }
 
   const entities = scanUniverse(universeRoot);
-  const validation = validateUniverse(root);
+
+  // Validate the universe itself. When run from an opted-in story root,
+  // validateUniverse(storyRoot) runs cross-level checks against the story.
+  // When run from a universe root or an unopted/mismatched story root,
+  // validate the universeRoot directly so entity IDs, frontmatter, and
+  // scaffold paths are checked — not a false-ok early return.
+  const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
+  let validation;
+  if (isStoryRoot) {
+    const storyMd = readMarkdown(path.join(resolvedRoot, "story.md"), resolvedRoot);
+    if (storyMd.data.universe) {
+      // Check the resolved universe id matches the story's universe field.
+      // A mismatch means validateUniverse(storyRoot) would early-return ok
+      // with a warning, hiding universe-level errors from the report.
+      const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+        // Opted-in story with matching universe — validate cross-level refs.
+        validation = validateUniverse(resolvedRoot);
+      } else {
+        // Id mismatch — validate the universe itself, not the story root.
+        validation = validateUniverse(universeRoot);
+      }
+    } else {
+      // Story under a universe but not opted in — validate the universe itself.
+      validation = validateUniverse(universeRoot);
+    }
+  } else {
+    // Universe root — validate the universe directly.
+    validation = validateUniverse(universeRoot);
+  }
 
   return {
     counts: {

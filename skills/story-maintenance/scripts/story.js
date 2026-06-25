@@ -1363,12 +1363,30 @@ function formatUniverseScan(result) {
 `;
 }
 function universeReport(root) {
-  const universeRoot = resolveUniverseRoot(root);
+  const resolvedRoot = path2.resolve(root);
+  const universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
     return null;
   }
   const entities = scanUniverse(universeRoot);
-  const validation = validateUniverse(root);
+  const isStoryRoot = fs.existsSync(path2.join(resolvedRoot, "story.md"));
+  let validation;
+  if (isStoryRoot) {
+    const storyMd = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
+    if (storyMd.data.universe) {
+      const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+        validation = validateUniverse(resolvedRoot);
+      } else {
+        validation = validateUniverse(universeRoot);
+      }
+    } else {
+      validation = validateUniverse(universeRoot);
+    }
+  } else {
+    validation = validateUniverse(universeRoot);
+  }
   return {
     counts: {
       characters: entities.characters.length,

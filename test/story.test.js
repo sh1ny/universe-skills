@@ -2249,4 +2249,48 @@ object-state:
     expect(validation.ok).toBe(false);
     expect(validation.errors.some((e) => e.includes("Cross-level reference 'location: nonexistent-place' does not resolve"))).toBe(true);
   });
+  test("universeReport from unopted story validates universe, not false-ok", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Strip the universe opt-in field so the story is unopted
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/^universe:.*\n/m, ""), "utf8");
+    // Break the universe — add a non-kebab entity id
+    writeMarkdown(path.join(universeResult.root, "characters", "Bad_Id.md"), `
+name: "Bad"
+role: supporting
+status: alive
+`, "# Bad\n");
+    const report = universeReport(storyRoot);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors.some((e) => e.includes("kebab-case"))).toBe(true);
+  });
+  test("universeReport from mismatched story validates universe, not false-ok", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Change the universe field to a wrong id so it doesn't match
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: wrong-universe"), "utf8");
+    // Break the universe — add a non-kebab entity id
+    writeMarkdown(path.join(universeResult.root, "characters", "Bad_Id.md"), `
+name: "Bad"
+role: supporting
+status: alive
+`, "# Bad\n");
+    const report = universeReport(storyRoot);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors.some((e) => e.includes("kebab-case"))).toBe(true);
+  });
 });
