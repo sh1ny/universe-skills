@@ -4,9 +4,11 @@
 
 **Agent Skills for planning, tracking, and drafting fiction in markdown.**
 
-Story Skills gives agents a shared project format for fiction: a story bible, character files, worldbuilding notes, factions, artifacts, plot arcs, scene state, continuity questions, promises/payoffs, timelines, and chapter drafts. Everything is plain markdown with YAML frontmatter, packaged as standard Agent Skills with Codex and Claude Code plugin support.
+> ⚠️ **Early Development** — This project is under active development and not yet published to any package registry. APIs, file formats, and skill workflows may change between versions. Install from GitHub only (see below).
 
-The companion CLI treats the story bible as a checkable contract: a **continuity engine** catches dead characters walking, payoffs that land before their setup, unfired Chekhov guns, and stale story state — deterministically, before a reader ever could.
+Story Skills gives agents a shared project format for fiction: a story bible, character files, worldbuilding notes, factions, artifacts, plot arcs, scene state, continuity questions, promises/payoffs, timelines, and chapter drafts. Everything is plain markdown with YAML frontmatter, packaged as standard Agent Skills.
+
+The companion CLI treats the story bible as a checkable contract: a **continuity engine** catches dead characters walking, payoffs that land before their setup, unfired Chekhov guns, and stale story state — deterministically, before a reader ever could. Universe-level worldbuilding enables shared entities across multiple stories in the same setting.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent_Skills-SKILL.md-blue)](https://agentskills.io)
@@ -17,27 +19,27 @@ The companion CLI treats the story bible as a checkable contract: a **continuity
 
 ---
 
-> Built on the open **Agent Skills** standard. Install it as a **Codex** or **Claude Code** plugin, with the Agent Skills CLI, or copy the `skills/` folders into any agent that supports `SKILL.md`.
+> Built on the open **Agent Skills** standard. Install it from GitHub by copying the `skills/` folders into any agent that supports `SKILL.md`.
 
 ## 🚀 Quick Start
 
-```shell
-# Codex plugin
-codex plugin marketplace add danjdewhurst/story-skills
-codex plugin add story-skills@story-skills
+This project is not on npm or any plugin marketplace yet. Install from GitHub:
 
-# Claude Code plugin
-/plugin marketplace add danjdewhurst/story-skills
-/plugin install story-skills@story-skills
+```shell
+git clone https://github.com/sh1ny/universe-skills.git
+cd universe-skills
+bun install
+bun run story --help
 ```
 
-For compatible `SKILL.md` agents, you can also install the bundle with the Agent Skills CLI:
+To use the agent skills, copy the `skills/` directory into your agent's skill path:
 
 ```shell
-npx skills add danjdewhurst/story-skills
+# Global install (any agent)
+cp -r skills/* ~/.agents/skills/
 
-# Or with Bun
-bunx skills add danjdewhurst/story-skills
+# Or project-scoped
+cp -r skills/* .agents/skills/
 ```
 
 Then ask **"Start a new story"** to scaffold the project.
@@ -67,175 +69,52 @@ These findings are exact, file-addressed, and reproducible — CI asserts them o
 For stronger chapter drafts and revision passes, install [forjd/better-writing](https://github.com/forjd/better-writing) alongside Story Skills. It adds voice calibration, anti-generic writing checks, and a final prose-quality pass.
 
 ```shell
-npx skills add forjd/better-writing
+git clone https://github.com/forjd/better-writing.git
+cp -r better-writing/skills/* ~/.agents/skills/
 ```
 
-Or with Bun:
+Or copy to a specific project:
 
 ```shell
-bunx skills add forjd/better-writing
+cp -r better-writing/skills/* .agents/skills/
 ```
 
 Story Skills works without it, but chapter drafting and revision are better when agents can use `better-writing`.
 
 ## 📦 Installation
 
-<details>
-<summary><strong>Codex</strong></summary>
+Install from GitHub — the project is not published to npm or any plugin marketplace.
+
+### Agent Skills
 
 ```shell
-# Add the marketplace
-codex plugin marketplace add danjdewhurst/story-skills
+git clone https://github.com/sh1ny/universe-skills.git
 
-# Install the plugin
-codex plugin add story-skills@story-skills
+# Copy skills to your agent's skill directory
+cp -r universe-skills/skills/* ~/.agents/skills/
+
+# Or project-scoped
+cp -r universe-skills/skills/* .agents/skills/
 ```
 
-For local skill authoring without a plugin install:
+Skills follow the open [Agent Skills](https://agentskills.io) standard: `SKILL.md` files with YAML frontmatter. Any agent that supports this format (Claude Code, Codex, Cursor, Windsurf, Gemini CLI, OpenCode, Copilot) can discover them from the copied directory.
+
+### Companion CLI
 
 ```shell
-git clone https://github.com/danjdewhurst/story-skills.git
-cp -r story-skills/skills/* ~/.agents/skills/
+# Clone and install dependencies
+git clone https://github.com/sh1ny/universe-skills.git
+cd universe-skills
+bun install
 
-# Or install to a specific repo as repo-scoped skills
-cp -r story-skills/skills/* .agents/skills/
+# Run locally
+bun run story --help
+
+# Or use npx directly from GitHub
+npx --yes --package github:sh1ny/universe-skills story --help
 ```
 
-Codex detects repo and user skills automatically. The plugin install is still the recommended path for this bundle.
-
-</details>
-
-<details>
-<summary><strong>Claude Code</strong></summary>
-
-```shell
-# Add the marketplace
-/plugin marketplace add danjdewhurst/story-skills
-
-# Install the plugin
-/plugin install story-skills@story-skills
-```
-
-</details>
-
-<details>
-<summary><strong>GitHub Copilot (VS Code)</strong></summary>
-
-[VS Code with Copilot](https://code.visualstudio.com/docs/copilot/customization/agent-skills) discovers skills from multiple directories:
-
-```shell
-git clone https://github.com/danjdewhurst/story-skills.git
-
-# Copy skills to your project (any of these work)
-cp -r story-skills/skills/* .github/skills/
-cp -r story-skills/skills/* .agents/skills/
-
-# Or install globally
-cp -r story-skills/skills/* ~/.copilot/skills/
-```
-
-Skills can activate when your request matches a skill description, or you can invoke them manually.
-
-</details>
-
-<details>
-<summary><strong>Cursor</strong></summary>
-
-[Cursor](https://www.cursor.com) supports the `SKILL.md` standard:
-
-```shell
-git clone https://github.com/danjdewhurst/story-skills.git
-
-cp -r story-skills/skills/* .agents/skills/
-```
-
-</details>
-
-<details>
-<summary><strong>Windsurf</strong></summary>
-
-[Windsurf](https://windsurf.com) discovers skills from workspace and global directories:
-
-```shell
-git clone https://github.com/danjdewhurst/story-skills.git
-
-# Copy skills to your project
-cp -r story-skills/skills/* .windsurf/skills/
-
-# Or install globally
-cp -r story-skills/skills/* ~/.codeium/windsurf/skills/
-```
-
-Cascade can invoke a matching skill automatically. You can also use `@skill-name` to invoke one directly.
-
-</details>
-
-<details>
-<summary><strong>Gemini CLI</strong></summary>
-
-[Gemini CLI](https://github.com/google-gemini/gemini-cli) supports the same `SKILL.md` format via the [Agent Skills](https://agentskills.io) standard:
-
-```shell
-# Install all skills globally
-gemini skills install https://github.com/danjdewhurst/story-skills.git
-
-# Or install a specific skill
-gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/story-init
-gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/character-management
-gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/worldbuilding
-gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/plot-structure
-gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/chapter-writing
-gemini skills install https://github.com/danjdewhurst/story-skills.git --path skills/revision-continuity
-
-# Or link locally after cloning
-git clone https://github.com/danjdewhurst/story-skills.git
-gemini skills link story-skills/skills
-```
-
-Gemini discovers the skills and can activate them when your request matches a skill description.
-
-</details>
-
-<details>
-<summary><strong>OpenCode</strong></summary>
-
-The skills use the same `SKILL.md` format that [OpenCode](https://opencode.ai) supports natively:
-
-```shell
-git clone https://github.com/danjdewhurst/story-skills.git
-
-# Copy skills to your project
-cp -r story-skills/skills/* .opencode/skills/
-
-# Or install globally
-cp -r story-skills/skills/* ~/.config/opencode/skills/
-```
-
-OpenCode also searches common skill paths such as `.claude/skills/`, so compatible project-level skills can be discovered automatically.
-
-</details>
-
-<details>
-<summary><strong>Other platforms</strong></summary>
-
-These skills follow the open [Agent Skills](https://agentskills.io) standard: `SKILL.md` files with YAML frontmatter. If your agent supports the Agent Skills CLI, install the bundle directly:
-
-```shell
-npx skills add danjdewhurst/story-skills
-
-# Or with Bun
-bunx skills add danjdewhurst/story-skills
-```
-
-Use `--skill <name>` to install only specific skills, or `--agent <name>` to target a supported agent. You can also copy the skill folders into any compatible agent's skills directory.
-
-For non-agent use:
-
-- **Claude.ai / ChatGPT Projects** — add the SKILL.md and reference files as project knowledge
-- **Any LLM API** — include skill content in system prompts
-- **Manual use** — the templates, workflows, and story structure are model-agnostic
-
-</details>
+For copied-skill installs, `story-maintenance` includes a bundled `scripts/story.js` fallback that agents can run with Node — no Bun or npm required.
 
 ## 🛠️ Skills
 
@@ -248,6 +127,7 @@ For non-agent use:
 | **chapter-writing** | Drafts chapters through an outline-first workflow that pulls from story context | *"Write the next chapter"* |
 | **revision-continuity** | Revises drafts, audits continuity, and keeps character state, timeline, and arc changes consistent | *"Continuity-check chapter 3"* |
 | **story-maintenance** | Runs deterministic CLI checks for validation, continuity, reports, indexing, links, word counts, import, and export | *"Validate my story project"* |
+| **universe-management** | Manages a shared universe container above story projects with cross-level entity resolution | *"Create a universe"* |
 
 For stronger prose, pair **chapter-writing** with [**better-writing**](https://github.com/forjd/better-writing).
 
@@ -263,7 +143,7 @@ bun run story --help
 The package also exposes a Node-compatible bin with no runtime dependencies. It is not on the npm registry yet, so run it straight from GitHub:
 
 ```shell
-npx --yes --package github:danjdewhurst/story-skills story --help
+npx --yes --package github:sh1ny/universe-skills story --help
 ```
 
 For copied-skill installs, `story-maintenance` includes a bundled `scripts/story.js` fallback that agents can run with Node.
@@ -288,6 +168,10 @@ The CLI is for deterministic maintenance only. Agents should write story content
 | `story doctor [path]` | Show health checks with actionable repair steps |
 | `story export [path] --out manuscript.md` | Combine chapters into a single manuscript markdown file |
 | `story build [path] --format epub` | Build disposable markdown, EPUB, or DOCX artifacts in `dist/` |
+| `story universe init "Aetheria"` | Scaffold a universe container above story projects |
+| `story universe scan [path]` | List all universe-level entities (id, name, type, file) |
+| `story universe validate [path]` | Validate cross-level references, id uniqueness, no shadowing, frontmatter |
+| `story universe report [path]` | Full universe inventory with entity counts and validation issues |
 
 EPUB and DOCX builds target plain prose: scene-break lines (`***`, `---`) become a `* * *` separator paragraph, and other markdown structure such as lists or tables is flattened to text. The markdown export keeps chapter text as-is.
 
@@ -363,6 +247,23 @@ my-story/
     └── _index.md             # Chapter registry
 ```
 
+A universe container sits in a parent directory above story projects:
+
+```
+my-universe/
+├── universe.md               # Universe bible — name, genre, tone, themes
+├── characters/
+│   └── _index.md             # Shared character registry
+├── worldbuilding/
+│   ├── _index.md             # World overview
+│   ├── locations/
+│   ├── systems/
+│   ├── factions/
+│   └── artifacts/
+└── stories/
+    └── my-story/             # A story project (structure as above)
+```
+
 ## ⚙️ How It Works
 
 Every story element is a markdown file with YAML frontmatter. The skills cross-reference those files so the project stays consistent:
@@ -374,19 +275,21 @@ Every story element is a markdown file with YAML frontmatter. The skills cross-r
 - Relationships and references are maintained **bidirectionally**
 - Scene records and continuity state make character knowledge, object ownership, and setup/payoff tracking durable
 - Story content is created directly as markdown; generated build scripts are not part of the project format
+- A `universe.md` file in a parent directory enables shared worldbuilding across story projects; `story init` auto-detects it
 
 ## 📖 Examples
 
-- Read [**The Cormorant Tide**](https://github.com/danjdewhurst/the-cormorant-tide), a full story project generated with Story Skills.
 - Explore [`examples/the-last-ember/`](examples/the-last-ember/) for a complete fantasy example: three characters, two locations, a magic system, a plot arc with foreshadowing, and a drafted first chapter.
 - Explore [`examples/harbor-of-second-light/`](examples/harbor-of-second-light/) for a near-future coastal mystery example with memory technology, a posthumous witness arc, populated continuity state, and a drafted first chapter.
 - Explore [`examples/the-unraveled-thread/`](examples/the-unraveled-thread/) for a deliberately broken project that demonstrates every class of finding the continuity engine reports.
 
 ## 🚢 Releasing
 
-Codex uses `.codex-plugin/plugin.json` as its plugin version source. Claude Code uses `.claude-plugin/plugin.json`. Bump both versions for every published change so installed users receive updates; keep marketplace entries unversioned to avoid duplicate version state. Run `bun run check:metadata` before publishing to confirm package and plugin metadata are aligned.
+This fork is not published to any plugin marketplace. When it is ready for release, the process will involve:
 
-Distribution metadata lives in `.claude-plugin/` for Claude Code and `.codex-plugin/` plus `.agents/plugins/marketplace.json` for Codex. The `plugins/story-skills` symlink is intentional: Codex marketplace entries must point at a child plugin directory, so the symlink exposes the repo-root plugin without duplicating `skills/`.
+1. Bump version in `package.json`, `.codex-plugin/plugin.json`, and `.claude-plugin/plugin.json`
+2. Run `bun run check:metadata` to confirm alignment
+3. Tag a release on GitHub
 
 ## 📄 License
 
