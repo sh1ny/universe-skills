@@ -1063,6 +1063,23 @@ function validateUniverse(root) {
   if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
     errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
   }
+  const universeId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+  for (const [relativePath, expectedType] of UNIVERSE_INDEX_SCHEMAS) {
+    const fullPath = path2.join(universeRoot, relativePath);
+    if (!fs.existsSync(fullPath)) {
+      continue;
+    }
+    const indexData = readMarkdown(fullPath, universeRoot).data;
+    requireFields(indexData, ["type", "story"], `universe ${relativePath}`, errors);
+    requireScalar(indexData, "type", `universe ${relativePath}`, errors);
+    requireScalar(indexData, "story", `universe ${relativePath}`, errors);
+    if (indexData.type !== undefined && indexData.type !== expectedType) {
+      errors.push(`universe ${relativePath} type must be ${expectedType}`);
+    }
+    if (universeId && indexData.story !== undefined && indexData.story !== universeId) {
+      errors.push(`universe ${relativePath} story must be ${universeId}`);
+    }
+  }
   const entityTypes = ["characters", "locations", "systems", "factions", "artifacts"];
   for (const type of entityTypes) {
     validateUniverseIds(universeEntities[type], type, errors);

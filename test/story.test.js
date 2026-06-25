@@ -2315,4 +2315,36 @@ status: alive
     expect(report.validation.ok).toBe(false);
     expect(report.validation.errors.some((e) => e.includes("universe.md schema-version must be 2"))).toBe(true);
   });
+  test("validateUniverse rejects wrong registry type in _index.md", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const indexPath = path.join(universeResult.root, "characters", "_index.md");
+    const content = fs.readFileSync(indexPath, "utf8");
+    fs.writeFileSync(indexPath, content.replace(/type: character-registry/, "type: wrong-registry"), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("type must be character-registry"))).toBe(true);
+  });
+
+  test("validateUniverse rejects missing type field in _index.md", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const indexPath = path.join(universeResult.root, "worldbuilding", "_index.md");
+    const content = fs.readFileSync(indexPath, "utf8");
+    fs.writeFileSync(indexPath, content.replace(/type: world-registry\n/, ""), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("is missing frontmatter field") && e.includes("type"))).toBe(true);
+  });
+
+  test("validateUniverse rejects wrong story id in _index.md", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const indexPath = path.join(universeResult.root, "characters", "_index.md");
+    const content = fs.readFileSync(indexPath, "utf8");
+    fs.writeFileSync(indexPath, content.replace(/story: aetheria/, "story: wrong-universe"), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("story must be aetheria"))).toBe(true);
+  });
 });
