@@ -487,15 +487,27 @@ export function validateLinks(root) {
   const chapters = new Map(project.chapters.map((item) => [item.id, item]));
   const arcs = new Map(project.arcs.map((item) => [item.id, item]));
   const factions = new Map(project.factions.map((item) => [item.id, item]));
+  // Build combined existence maps (story + universe) so that references to
+  // universe-level entities pass existence checks. Backlink enforcement stays
+  // story-only — universe entities are referenced by many stories and must
+  // not carry per-story backlinks.
+  const allCharacters = new Map(characters);
+  const allLocations = new Map(locations);
+  const allFactions = new Map(factions);
+  if (project.universe) {
+    for (const c of project.universe.characters) { allCharacters.set(c.id, c); }
+    for (const l of project.universe.locations) { allLocations.set(l.id, l); }
+    for (const f of project.universe.factions) { allFactions.set(f.id, f); }
+  }
 
   for (const character of project.characters) {
     for (const relationship of character.relationships) {
       const target = relationship.character;
-      if (!characters.has(target)) {
+      if (!allCharacters.has(target)) {
         errors.push(`${relative(project, character.file)} references missing character ${target}`);
-      } else if (!characters.get(target).relationships.some((entry) => entry.character === character.id)) {
+      } else if (characters.has(target) && !characters.get(target).relationships.some((entry) => entry.character === character.id)) {
         errors.push(`${relative(project, character.file)} relationship to ${target} is missing backlink`);
-      } else {
+      } else if (characters.has(target)) {
         const backlink = characters.get(target).relationships.find((entry) => entry.character === character.id);
         const expectedType = inverseRelationshipType(relationship.type);
         if (expectedType && backlink.type !== expectedType) {
@@ -505,9 +517,9 @@ export function validateLinks(root) {
     }
 
     for (const locationId of character.locations) {
-      if (!locations.has(locationId)) {
+      if (!allLocations.has(locationId)) {
         errors.push(`${relative(project, character.file)} references missing location ${locationId}`);
-      } else if (!locations.get(locationId).notableCharacters.includes(character.id)) {
+      } else if (locations.has(locationId) && !locations.get(locationId).notableCharacters.includes(character.id)) {
         errors.push(`${relative(project, character.file)} location ${locationId} is missing notable-character backlink`);
       }
     }
@@ -515,9 +527,9 @@ export function validateLinks(root) {
 
   for (const location of project.locations) {
     for (const characterId of location.notableCharacters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, location.file)} references missing character ${characterId}`);
-      } else if (!characters.get(characterId).locations.includes(location.id)) {
+      } else if (characters.has(characterId) && !characters.get(characterId).locations.includes(location.id)) {
         errors.push(`${relative(project, location.file)} notable character ${characterId} is missing location backlink`);
       }
     }
@@ -525,24 +537,24 @@ export function validateLinks(root) {
 
   for (const arc of project.arcs) {
     for (const characterId of arc.characters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, arc.file)} references missing character ${characterId}`);
       }
     }
   }
 
   for (const chapter of project.chapters) {
-    if (chapter.pov && !characters.has(chapter.pov)) {
+    if (chapter.pov && !allCharacters.has(chapter.pov)) {
       errors.push(`${relative(project, chapter.file)} references missing POV character ${chapter.pov}`);
     }
 
     for (const characterId of chapter.characters.concat(chapter.mentions)) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, chapter.file)} references missing character ${characterId}`);
       }
     }
     for (const locationId of chapter.locations) {
-      if (!locations.has(locationId)) {
+      if (!allLocations.has(locationId)) {
         errors.push(`${relative(project, chapter.file)} references missing location ${locationId}`);
       }
     }
@@ -555,22 +567,22 @@ export function validateLinks(root) {
 
   for (const faction of project.factions) {
     for (const characterId of faction.members) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, faction.file)} references missing member ${characterId}`);
       }
     }
     for (const locationId of faction.locations) {
-      if (!locations.has(locationId)) {
+      if (!allLocations.has(locationId)) {
         errors.push(`${relative(project, faction.file)} references missing location ${locationId}`);
       }
     }
   }
 
   for (const artifact of project.artifacts) {
-    if (artifact.owner && !characters.has(artifact.owner) && !factions.has(artifact.owner)) {
+    if (artifact.owner && !allCharacters.has(artifact.owner) && !allFactions.has(artifact.owner)) {
       errors.push(`${relative(project, artifact.file)} references missing owner ${artifact.owner}`);
     }
-    if (artifact.location && !locations.has(artifact.location)) {
+    if (artifact.location && !allLocations.has(artifact.location)) {
       errors.push(`${relative(project, artifact.file)} references missing location ${artifact.location}`);
     }
   }
@@ -579,14 +591,14 @@ export function validateLinks(root) {
     if (scene.chapter && !chapters.has(scene.chapter)) {
       errors.push(`${relative(project, scene.file)} references missing chapter ${scene.chapter}`);
     }
-    if (scene.pov && !characters.has(scene.pov)) {
+    if (scene.pov && !allCharacters.has(scene.pov)) {
       errors.push(`${relative(project, scene.file)} references missing POV character ${scene.pov}`);
     }
-    if (scene.location && !locations.has(scene.location)) {
+    if (scene.location && !allLocations.has(scene.location)) {
       errors.push(`${relative(project, scene.file)} references missing location ${scene.location}`);
     }
     for (const characterId of scene.characters.concat(scene.mentions)) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, scene.file)} references missing character ${characterId}`);
       }
     }
@@ -604,7 +616,7 @@ export function validateLinks(root) {
       }
     }
     for (const characterId of question.characters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, question.file)} references missing character ${characterId}`);
       }
     }
@@ -622,7 +634,7 @@ export function validateLinks(root) {
       }
     }
     for (const characterId of promise.characters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, promise.file)} references missing character ${characterId}`);
       }
     }

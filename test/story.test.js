@@ -2347,4 +2347,76 @@ status: alive
     expect(validation.ok).toBe(false);
     expect(validation.errors.some((e) => e.includes("story must be aetheria"))).toBe(true);
   });
+  test("validateLinks resolves universe-level character from chapter pov", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+pov: legend
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const result = validateLinks(storyRoot);
+    expect(result.errors.some((e) => e.includes("missing POV character legend"))).toBe(false);
+  });
+
+  test("validateLinks resolves universe-level location from chapter", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+type: wilderness
+region: Center
+`, "# Mountain\n");
+    writeMarkdown(path.join(storyRoot, "chapters", "chapter-01.md"), `
+number: 1
+title: "Chapter One"
+locations:
+  - sacred-mountain
+status: outline
+word-count: 0
+`, "## Chapter Text\n\nHello world.");
+    const result = validateLinks(storyRoot);
+    expect(result.errors.some((e) => e.includes("missing location sacred-mountain"))).toBe(false);
+  });
+
+  test("validateLinks does not require backlink from universe-level entity", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(storyRoot, "characters", "hero.md"), `
+name: "Hero"
+role: protagonist
+status: alive
+relationships:
+  - character: legend
+    type: ally
+`, "# Hero\n");
+    const result = validateLinks(storyRoot);
+    // legend exists at universe level — no backlink required
+    expect(result.errors.some((e) => e.includes("missing character legend"))).toBe(false);
+    expect(result.errors.some((e) => e.includes("backlink"))).toBe(false);
+  });
 });
