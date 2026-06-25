@@ -221,6 +221,24 @@ function checkContinuity(project) {
     factions: new Set(project.factions.map((faction) => faction.id)),
     latestChapter: project.chapters.reduce((max, chapter) => Math.max(max, chapter.number), 0)
   };
+  if (project.universe) {
+    for (const character of project.universe.characters) {
+      if (!context.characters.has(character.id)) {
+        context.characters.set(character.id, character);
+      }
+    }
+    for (const location of project.universe.locations) {
+      context.locations.add(location.id);
+    }
+    for (const artifact of project.universe.artifacts) {
+      if (!context.artifacts.has(artifact.id)) {
+        context.artifacts.set(artifact.id, artifact);
+      }
+    }
+    for (const faction of project.universe.factions) {
+      context.factions.add(faction.id);
+    }
+  }
   checkCharacterDeaths(project, context, errors);
   checkChapterCasts(project, warnings);
   checkSceneCasts(project, warnings);
@@ -581,6 +599,14 @@ function createUniverseProject(options) {
   if (fs.existsSync(path2.join(root, "universe.md"))) {
     throw new Error(`${root} already contains a universe.md`);
   }
+  if (fs.existsSync(path2.join(root, "story.md"))) {
+    throw new Error(`${root} appears to be a story project (story.md found). Use a parent directory instead.`);
+  }
+  for (const starterFile of ["characters/_index.md", "worldbuilding/_index.md"]) {
+    if (fs.existsSync(path2.join(root, starterFile))) {
+      throw new Error(`${root} already contains ${starterFile}. Refusing to overwrite existing registry — move or remove it first.`);
+    }
+  }
   const changed = [];
   ensureDirectory(path2.join(root, "characters"), changed, root);
   ensureDirectory(path2.join(root, "worldbuilding", "locations"), changed, root);
@@ -715,8 +741,12 @@ function scanProject(root) {
   if (story.data.universe) {
     const universeRoot = resolveUniverseRoot(projectRoot);
     if (universeRoot) {
-      project.universe = scanUniverse(universeRoot);
-      project.universeRoot = universeRoot;
+      const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      if (!resolvedUniverseId || resolvedUniverseId === story.data.universe) {
+        project.universe = scanUniverse(universeRoot);
+        project.universeRoot = universeRoot;
+      }
     }
   }
   return project;
@@ -1007,9 +1037,15 @@ function validateUniverse(root) {
       warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
       return { ok: true, errors, warnings };
     }
+    const universeMd2 = readMarkdown(path2.join(universeRoot2, "universe.md"), universeRoot2);
+    const resolvedUniverseId = universeMd2.data.name ? kebabCase(universeMd2.data.name) : null;
+    if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
+      warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
+      return { ok: true, errors, warnings };
+    }
   }
   const universeRoot = resolveUniverseRoot(resolvedRoot);
-  if (universeRoot === null) {
+  if (universeRoot === null || isStoryRoot && !storyData.universe) {
     return { ok: true, errors, warnings };
   }
   const universeEntities = scanUniverse(universeRoot);
@@ -1145,6 +1181,38 @@ function validateUniverse(root) {
       for (const characterId of promise.characters) {
         if (!combinedCharacters.has(characterId)) {
           errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+    if (project.continuity) {
+      const combinedArtifacts = new Map([
+        ...universeEntities.artifacts.map((a) => [a.id, a]),
+        ...project.artifacts.map((a) => [a.id, a])
+      ]);
+      const stateData = project.continuity.data;
+      for (const [index, entry] of asArray(stateData["character-state"]).entries()) {
+        const label = `continuity/state.md character-state[${index}]`;
+        if (entry.character && !combinedCharacters.has(entry.character)) {
+          errors.push(`Cross-level reference 'character: ${entry.character}' does not resolve at story or universe level`);
+        }
+        if (entry.location && !combinedLocations.has(entry.location)) {
+          errors.push(`Cross-level reference 'location: ${entry.location}' does not resolve at story or universe level`);
+        }
+      }
+      for (const [index, entry] of asArray(stateData["knowledge-state"]).entries()) {
+        if (entry.character && !combinedCharacters.has(entry.character)) {
+          errors.push(`Cross-level reference 'character: ${entry.character}' does not resolve at story or universe level`);
+        }
+      }
+      for (const [index, entry] of asArray(stateData["object-state"]).entries()) {
+        if (entry.artifact && !combinedArtifacts.has(entry.artifact)) {
+          errors.push(`Cross-level reference 'artifact: ${entry.artifact}' does not resolve at story or universe level`);
+        }
+        if (entry.owner && !combinedCharacters.has(entry.owner) && !combinedFactions.has(entry.owner)) {
+          errors.push(`Cross-level reference 'owner: ${entry.owner}' does not resolve at story or universe level`);
+        }
+        if (entry.location && !combinedLocations.has(entry.location)) {
+          errors.push(`Cross-level reference 'location: ${entry.location}' does not resolve at story or universe level`);
         }
       }
     }

@@ -177,6 +177,14 @@ export function createUniverseProject(options) {
   if (fs.existsSync(path.join(root, "universe.md"))) {
     throw new Error(`${root} already contains a universe.md`);
   }
+  if (fs.existsSync(path.join(root, "story.md"))) {
+    throw new Error(`${root} appears to be a story project (story.md found). Use a parent directory instead.`);
+  }
+  for (const starterFile of ["characters/_index.md", "worldbuilding/_index.md"]) {
+    if (fs.existsSync(path.join(root, starterFile))) {
+      throw new Error(`${root} already contains ${starterFile}. Refusing to overwrite existing registry — move or remove it first.`);
+    }
+  }
 
   const changed = [];
   ensureDirectory(path.join(root, "characters"), changed, root);
@@ -322,8 +330,15 @@ export function scanProject(root) {
   if (story.data.universe) {
     const universeRoot = resolveUniverseRoot(projectRoot);
     if (universeRoot) {
-      project.universe = scanUniverse(universeRoot);
-      project.universeRoot = universeRoot;
+      const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+      const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+      // Only attach the universe if the resolved id matches the story's opt-in field.
+      // A mismatch means the story was moved under the wrong universe — treat as
+      // standalone so continuity/report/doctor don't validate against wrong entities.
+      if (!resolvedUniverseId || resolvedUniverseId === story.data.universe) {
+        project.universe = scanUniverse(universeRoot);
+        project.universeRoot = universeRoot;
+      }
     }
   }
 
@@ -650,11 +665,23 @@ export function validateUniverse(root) {
       warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
       return { ok: true, errors, warnings };
     }
+    // Verify the resolved universe.md id matches the story's universe field.
+    // A story moved under the wrong universe should be treated as "universe
+    // not found" — standalone mode — rather than running cross-level checks
+    // against the wrong shared entities.
+    const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+    const resolvedUniverseId = universeMd.data.name ? kebabCase(universeMd.data.name) : null;
+    if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
+      warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
+      return { ok: true, errors, warnings };
+    }
   }
-
-  // If no story.md and no universe.md, nothing to validate
+  // If no story.md and no universe.md, nothing to validate.
+  // For story roots without the universe opt-in field, skip universe
+  // scanning entirely — the story may be under an ancestor universe.md
+  // but hasn't opted in, so its ancestor should not be validated here.
   const universeRoot = resolveUniverseRoot(resolvedRoot);
-  if (universeRoot === null) {
+  if (universeRoot === null || (isStoryRoot && !storyData.universe)) {
     return { ok: true, errors, warnings };
   }
 
@@ -830,7 +857,45 @@ export function validateUniverse(root) {
         }
       }
     }
+    // Rule 4.2: Continuity state — character-state, knowledge-state, and
+    // object-state entries reference entities that may live at universe level.
+    // Only check cross-level resolution (not chronology/completion rules, which
+    // belong to `story continuity`). Mirror checkContinuityState's field checks.
+    if (project.continuity) {
+      const combinedArtifacts = new Map([
+        ...universeEntities.artifacts.map((a) => [a.id, a]),
+        ...project.artifacts.map((a) => [a.id, a])
+      ]);
+      const stateData = project.continuity.data;
 
+      for (const [index, entry] of (asArray(stateData["character-state"])).entries()) {
+        const label = `continuity/state.md character-state[${index}]`;
+        if (entry.character && !combinedCharacters.has(entry.character)) {
+          errors.push(`Cross-level reference 'character: ${entry.character}' does not resolve at story or universe level`);
+        }
+        if (entry.location && !combinedLocations.has(entry.location)) {
+          errors.push(`Cross-level reference 'location: ${entry.location}' does not resolve at story or universe level`);
+        }
+      }
+
+      for (const [index, entry] of (asArray(stateData["knowledge-state"])).entries()) {
+        if (entry.character && !combinedCharacters.has(entry.character)) {
+          errors.push(`Cross-level reference 'character: ${entry.character}' does not resolve at story or universe level`);
+        }
+      }
+
+      for (const [index, entry] of (asArray(stateData["object-state"])).entries()) {
+        if (entry.artifact && !combinedArtifacts.has(entry.artifact)) {
+          errors.push(`Cross-level reference 'artifact: ${entry.artifact}' does not resolve at story or universe level`);
+        }
+        if (entry.owner && !combinedCharacters.has(entry.owner) && !combinedFactions.has(entry.owner)) {
+          errors.push(`Cross-level reference 'owner: ${entry.owner}' does not resolve at story or universe level`);
+        }
+        if (entry.location && !combinedLocations.has(entry.location)) {
+          errors.push(`Cross-level reference 'location: ${entry.location}' does not resolve at story or universe level`);
+        }
+      }
+    }
   }
 
   return { ok: errors.length === 0, errors, warnings };

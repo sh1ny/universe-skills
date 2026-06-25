@@ -5,6 +5,7 @@ import {
   buildBook,
   computeWordCounts,
   createEntity,
+  checkProjectContinuity,
   createStoryProject,
   createUniverseProject,
   exportManuscript,
@@ -1983,5 +1984,269 @@ word-count: 0
     const validation = validateUniverse(storyRoot);
     expect(validation.ok).toBe(true);
     expect(validation.errors).toEqual([]);
+  });
+  test("createUniverseProject refuses to overwrite existing story.md", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Existing Story", cwd });
+    const storyRoot = path.join(cwd, "existing-story");
+    expect(() => createUniverseProject({ name: "New Universe", cwd: storyRoot })).toThrow("appears to be a story project");
+  });
+
+  test("createUniverseProject refuses to overwrite existing _index.md", () => {
+    const cwd = makeTempDir();
+    fs.mkdirSync(path.join(cwd, "characters"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, "characters", "_index.md"), "# Custom Registry\n", "utf8");
+    expect(() => createUniverseProject({ name: "New Universe", cwd })).toThrow("already contains characters/_index.md");
+  });
+
+  test("createUniverseProject refuses when worldbuilding/_index.md exists", () => {
+    const cwd = makeTempDir();
+    fs.mkdirSync(path.join(cwd, "worldbuilding"), { recursive: true });
+    fs.writeFileSync(path.join(cwd, "worldbuilding", "_index.md"), "# Custom World\n", "utf8");
+    expect(() => createUniverseProject({ name: "New Universe", cwd })).toThrow("already contains worldbuilding/_index.md");
+  });
+
+  test("validateUniverse warns when story universe id does not match resolved universe", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Change the universe field to a wrong id
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: wrong-universe"), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
+    expect(validation.warnings.some((w) => w.includes("Universe 'wrong-universe' not found") && w.includes("resolved universe is 'aetheria'"))).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+
+  test("scanProject does not attach universe when id does not match", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Change the universe field to a wrong id
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: wrong-universe"), "utf8");
+    const project = scanProject(storyRoot);
+    expect(project.universe).toBeUndefined();
+    expect(project.universeRoot).toBeUndefined();
+  });
+
+  test("cross-level: continuity state references universe-level character", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+type: wilderness
+region: Center
+`, "# Mountain\n");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "artifacts", "ancient-relic.md"), `
+name: "Ancient Relic"
+type: relic
+status: active
+`, "# Relic\n");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+character-state:
+  - character: legend
+    location: sacred-mountain
+object-state:
+  - artifact: ancient-relic
+    status: active
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+
+  test("cross-level: broken continuity state character reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+character-state:
+  - character: nonexistent-char
+    location: nonexistent-place
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'character: nonexistent-char' does not resolve"))).toBe(true);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'location: nonexistent-place' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken continuity state artifact reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+object-state:
+  - artifact: nonexistent-artifact
+    status: active
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'artifact: nonexistent-artifact' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: continuity state faction owner resolves from universe level", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "factions", "ancient-order.md"), `
+name: "Ancient Order"
+type: religion
+status: active
+`, "# Order\n");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "artifacts", "relic.md"), `
+name: "Relic"
+type: relic
+status: active
+`, "# Relic\n");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+object-state:
+  - artifact: relic
+    owner: ancient-order
+    status: active
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(true);
+    expect(validation.errors).toEqual([]);
+  });
+  test("checkContinuity resolves universe-level entities in state entries", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: "Legend"
+role: supporting
+status: alive
+`, "# Legend\n");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "locations", "sacred-mountain.md"), `
+name: "Sacred Mountain"
+type: wilderness
+region: Center
+`, "# Mountain\n");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "artifacts", "ancient-relic.md"), `
+name: "Ancient Relic"
+type: relic
+status: active
+`, "# Relic\n");
+    writeMarkdown(path.join(universeResult.root, "worldbuilding", "factions", "ancient-order.md"), `
+name: "Ancient Order"
+type: religion
+status: active
+`, "# Order\n");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+character-state:
+  - character: legend
+    location: sacred-mountain
+knowledge-state:
+  - character: legend
+    knows: secret-of-the-mountain
+object-state:
+  - artifact: ancient-relic
+    owner: ancient-order
+    status: active
+`, "# State\n");
+    const result = checkProjectContinuity(storyRoot);
+    expect(result.errors).toEqual([]);
+  });
+
+  test("cross-level: broken knowledge-state character reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+knowledge-state:
+  - character: nonexistent-char
+    knows: some-secret
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'character: nonexistent-char' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken object-state owner reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "worldbuilding", "artifacts", "sword.md"), `
+name: "Sword"
+type: weapon
+status: active
+`, "# Sword\n");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+object-state:
+  - artifact: sword
+    owner: nonexistent-owner
+    status: active
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'owner: nonexistent-owner' does not resolve"))).toBe(true);
+  });
+
+  test("cross-level: broken object-state location reference errors", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    writeMarkdown(path.join(storyRoot, "worldbuilding", "artifacts", "sword.md"), `
+name: "Sword"
+type: weapon
+status: active
+`, "# Sword\n");
+    writeMarkdown(path.join(storyRoot, "continuity", "state.md"), `
+current-chapter: 0
+object-state:
+  - artifact: sword
+    location: nonexistent-place
+    status: active
+`, "# State\n");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Cross-level reference 'location: nonexistent-place' does not resolve"))).toBe(true);
   });
 });
