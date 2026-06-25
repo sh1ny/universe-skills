@@ -65,7 +65,7 @@ The `story init` command SHALL walk up from the target directory to detect a `un
 
 ### Requirement: Universe entity scanning with path-safety isolation
 
-The system SHALL scan universe-level entity directories using the existing `readEntityFiles` pattern, but MUST pass the universe directory as the root argument to `readEntityFiles`/`readMarkdown`/`assertLexicallyInsideRoot`. The story root MUST NOT be used as the root for universe file paths, because the universe directory is an ancestor of the story root and universe paths are lexically outside `storyRoot`.
+The system SHALL scan universe-level entity directories for the five supported shared-worldbuilding entity types — `characters/`, `worldbuilding/locations/`, `worldbuilding/systems/`, `worldbuilding/factions/`, `worldbuilding/artifacts/` — using the existing `readEntityFiles` pattern, but MUST pass the universe directory as the root argument to `readEntityFiles`/`readMarkdown`/`assertLexicallyInsideRoot`. The story root MUST NOT be used as the root for universe file paths, because the universe directory is an ancestor of the story root and universe paths are lexically outside `storyRoot`. Narrative and metadata entity types (arcs, chapters, scenes, questions, promises, terms) are story-level only and are NOT scanned at the universe level.
 
 #### Scenario: Universe entities scanned with universe root
 - **WHEN** `scanProject` resolves a universe directory and scans `universe-root/characters/`, `universe-root/worldbuilding/`, etc.
@@ -80,7 +80,7 @@ The system SHALL scan universe-level entity directories using the existing `read
 
 ### Requirement: Snapshot isolation for universe entities
 
-The system SHALL store universe-level entities in a separate `project.universe` object (with its own `characters`, `locations`, `systems`, `factions`, `artifacts` arrays) and a `project.universeRoot` path. Universe entities MUST NOT be merged into the top-level `project.characters`/`project.locations`/etc. arrays. Existing consumers (`reindexProject`, `computeWordCounts`, `exportManuscript`, `formatProjectReport`) MUST continue to operate on story-level arrays only without modification.
+The system SHALL store universe-level entities in a separate `project.universe` object (with its own `characters`, `locations`, `systems`, `factions`, `artifacts` arrays) and a `project.universeRoot` path. Only these five shared-worldbuilding entity types are supported at the universe level. Universe entities MUST NOT be merged into the top-level `project.characters`/`project.locations`/etc. arrays. Existing consumers (`reindexProject`, `computeWordCounts`, `exportManuscript`, `formatProjectReport`) MUST continue to operate on story-level arrays only without modification.
 
 #### Scenario: Universe entities in separate snapshot field
 - **WHEN** `scanProject` scans a story with a resolved universe containing 5 characters and 3 locations

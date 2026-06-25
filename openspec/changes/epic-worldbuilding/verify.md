@@ -71,40 +71,33 @@ Scenarios:
 
 | Spot-check item | Design description | Specs counterpart | Gap |
 |---|---|---|---|
-| D3: entity types at both levels | "Both levels can hold any entity type — level is chosen per-entity, not per-type" | Spec "Universe entity scanning" lists 5 worldbuilding types only (characters, locations, systems, factions, artifacts) | **W2 — design says "any entity type" but implementation/spec only scaffold 5 worldbuilding types. Narrative types (arcs, chapters, scenes, questions, promises, terms) are not universe-level. Design D3 should be narrowed to "shared-worldbuilding entity types only."** |
-| D1/D6: opt-in via frontmatter | "Universe is opt-in… `story.md` frontmatter gains a `universe` field" | Spec "Story opt-in via universe frontmatter field" — "When present, the CLI resolves the universe" | **W1 — `validateUniverse` cross-level checks gate on `isStoryRoot` (directory proximity) not `storyData.universe` (frontmatter opt-in). A story under an ancestor `universe.md` but without the `universe` field gets cross-level/shadowing checks it shouldn't. `scanProject` correctly gates on `story.data.universe`; only `validateUniverse` is inconsistent.** |
-| D10: five validation rules | Cross-level refs, id uniqueness, no shadowing, frontmatter completeness, universe resolution warning | Spec scenarios for each rule | Implementation matches spec for the 5 worldbuilding types. **W2b — cross-level refs from narrative entities (chapter.pov, scene.characters, arc.characters, question.characters, promise.characters) to universe-level entities are NOT validated. A chapter with `pov: ancient-one` passes `story universe validate` even if `ancient-one` doesn't exist.** |
+| D3: entity types at both levels | "Both levels can hold any shared-worldbuilding entity type — level is chosen per-entity, not per-type" | Spec "Universe entity scanning" lists 5 worldbuilding types only (characters, locations, systems, factions, artifacts) | ~~W2~~ **RESOLVED** — design D3 narrowed to "shared-worldbuilding entity types only"; narrative types explicitly excluded. |
+| D1/D6: opt-in via frontmatter | "Universe is opt-in… `story.md` frontmatter gains a `universe` field" | Spec "Story opt-in via universe frontmatter field" — "When present, the CLI resolves the universe" | ~~W1~~ **RESOLVED** — `validateUniverse` cross-level gate changed to `if (isStoryRoot && storyData.universe)`. |
+| D10: five validation rules | Cross-level refs, id uniqueness, no shadowing, frontmatter completeness, universe resolution warning | Spec scenarios for each rule | ~~W2b~~ **RESOLVED** — cross-level checks now cover chapter (pov, characters, mentions, locations), scene (pov, characters, mentions, location), arc (characters), question (characters), promise (characters). |
 | D7: grouped `_index.md` registries | Mirrors `INDEX_SCHEMAS` layout | Spec "Initialize a new universe" scenario | No gap — implementation matches |
 | D12: path-safety isolation | Universe root used for `assertLexicallyInsideRoot`, never story root | Spec "Universe entity scanning with path-safety isolation" | No gap — implementation correct. **W3 — but the test for "entity files outside universeRoot are refused" (task 9.8) is a no-op: it scans an empty universe and asserts empty arrays without creating an out-of-root file or asserting refusal.** |
 | D9: story init auto-detection | Walk up to find `universe.md`, write `universe` field | Spec "Universe auto-detection during story init" | No gap |
 
 **Drift warning** (non-blocking):
 
-- **W1 (correctness)**: `validateUniverse` cross-level/shadowing checks gate on `isStoryRoot` (line 638) instead of `storyData.universe`. Stories under an ancestor `universe.md` without the opt-in field get false-positive cross-level errors. Fix: change gate at line 681 from `if (isStoryRoot)` to `if (isStoryRoot && storyData.universe)`.
-- **W2 (design + correctness)**: D3 says "any entity type" but only 5 worldbuilding types are scaffolded. Narrow D3 to "shared-worldbuilding entity types only." Then extend `validateUniverse` cross-level checks to narrative→worldbuilding refs (chapter.pov, scene.characters, arc.characters, etc.).
+- ~~**W1 (correctness)**~~: **RESOLVED** — `validateUniverse` cross-level/shadowing checks now gate on `if (isStoryRoot && storyData.universe)` instead of `isStoryRoot` alone.
+- ~~**W2 (design + correctness)**~~: **RESOLVED** — Design D3 narrowed to "shared-worldbuilding entity types only." Spec requirements "Universe entity scanning" and "Snapshot isolation" updated to explicitly list the 5 supported types and note narrative/metadata types are story-level only. Cross-level checks extended to narrative→worldbuilding refs (chapter.pov/characters/mentions/locations, scene.pov/characters/mentions/location, arc.characters, question.characters, promise.characters).
 - **W3 (test coverage)**: Path-safety "outside universeRoot" test (task 9.8) is a no-op. Implementation is safe but the specific scenario is untested.
 - **W4 (documentation)**: AGENTS.md test inventory table lists stale counts (story.test.js: 23→~79, cli.test.js: 8→~22). No universe test groups mentioned.
 - **W5 (test coverage)**: Spec defines a `schema-version` frontmatter removal scenario (spec.md:159-161) but only the `name`-missing scenario is tested. Implementation handles both via loop over `UNIVERSE_REQUIRED_FRONTMATTER`.
 
-All five warnings are non-blocking — the implementation is functional, 118 tests pass, 100% coverage, fallback current. They are scoped for a follow-up change.
+W1 and W2b resolved in code commit `851e5a7`; W2a (design D3 narrowing, spec updates) in the follow-up docs commit. W3–W5 remain non-blocking. The implementation is functional: 133 tests pass, 100% coverage, fallback current.
 
 ---
 
 ## 5. Implementation Signal
 
 - [x] No unstaged files in the worktree (excluding this verify.md artifact)
-- [ ] All relevant commits have been pushed — branch `feature/epic-worldbuilding` has no upstream tracking ref; commits exist locally only
+- [x] All relevant commits have been pushed — branch `feature/epic-worldbuilding` tracks `origin/feature/epic-worldbuilding`
 
-**Commit range** (if known): `origin/main..HEAD` (2 commits: `cb61521` feat: universe scaffold, `9b391fa` chore: change artifacts)
+**Commit range**: `origin/main..HEAD` (6 commits: `cb61521` feat: universe scaffold, `9b391fa` chore: OpenSpec artifacts, `ac94c2d` chore: verify/retrospective, `3d06abf` docs: README rewrite, `851e5a7` fix: universe validation checks required paths and manuscript refs, plus follow-up docs commit for W2a design/spec narrowing)
 
-**Untracked files at verification time**:
-
-| File | Status | Action taken |
-|---|---|---|
-| `UNIVERSE-VERIFY-GAPS.md` | Untracked working note from implementation phase | Findings folded into §4 warnings above. File removed. |
-| `openspec/changes/epic-worldbuilding/verify.md` | This artifact (newly created) | Expected — will be committed with the change artifacts. |
-
-> The worktree had one untracked working note (`UNIVERSE-VERIFY-GAPS.md`) whose findings are captured in §4. The file has been removed. The only remaining untracked file is this `verify.md` artifact itself. The branch `feature/epic-worldbuilding` has not been pushed to a remote — `git branch -vv` shows no upstream tracking ref.
+> Branch `feature/epic-worldbuilding` has been pushed to `origin`. PR #1 opened against `sh1ny/universe-skills:main`.
 
 ---
 
@@ -146,9 +139,9 @@ No files found. No leak.
 ## Overall Decision
 
 - [ ] ✅ PASS — may proceed to finishing-a-development-branch and archive
-- [x] ⚠️ PASS WITH WARNINGS — may proceed to subsequent steps but note: `5 non-blocking warnings identified (W1–W5). Implementation is complete and functional: 118 tests pass, 100% coverage, fallback current. W1 (validator gating inconsistency) and W2 (design D3 scope drift + missing narrative→universe cross-level validation) should be addressed in a follow-up change. W3–W5 are test and documentation gaps. None block archive.`
+- [x] ⚠️ PASS WITH WARNINGS — may proceed to subsequent steps but note: `3 non-blocking warnings remain (W3–W5). W1 and W2b (validation gate fix, narrative cross-level checks) resolved in code commit 851e5a7; W2a (D3 design narrowing, spec updates) in the follow-up docs commit. Implementation is complete and functional: 133 tests pass, 100% coverage, fallback current. W3–W5 are test and documentation gaps. None block archive.`
 - [ ] ❌ FAIL — return to the failed artifact for correction, then re-run verify
 
 **Next step**:
 
-Proceed to `/opsx-continue` to create the `retrospective` artifact. The retrospective should record W1–W5 as "Misses" with follow-up plans, per the §7 interpretation rules (warnings recorded as follow-up entries).
+W1 and W2 are resolved. The retrospective already records them as "Misses" with follow-up plans. Remaining W3–W5 may be addressed in a future change.

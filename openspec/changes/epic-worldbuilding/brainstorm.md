@@ -82,6 +82,7 @@ Story projects keep their own characters, locations, etc.
 per-entity, not per-type. If an entity can appear in multiple stories, put it
 at the universe level. If it belongs to one story, put it in that story's
 directory.
+> **Note**: Superseded by D3 narrowing in the follow-up docs commit. The scope was later narrowed to "shared-worldbuilding entity types only" (characters, locations, systems, factions, artifacts) — narrative types (arcs, chapters, scenes, questions, promises, terms) are story-level only.
 
 **Options considered**:
 - Universal vs. local worldbuilding (type-based split): universe gets races/
@@ -377,9 +378,8 @@ resolves this.
         └── ...
 ```
 
-**Boundaries**:
-- Universe level: any entity type, chosen per-entity (not per-type)
-- Story level: any entity type, chosen per-entity
+- Universe level: any shared-worldbuilding entity type (characters, locations, systems, factions, artifacts), chosen per-entity (not per-type) [narrowed from "any entity type" — see D3 update in design.md]
+- Story level: any entity type, chosen per-entity (narrative types remain story-level only)
 - Resolution order: story-level first, then universe-level
 - No id shadowing: a story entity id cannot match a universe entity id of the
   same type
@@ -441,8 +441,7 @@ resolves this.
 2. **Universe lives in a parent directory above story projects** — `universe.md`
    + shared entity directories. Stories reference via `universe` frontmatter
    field (kebab-case id).
-3. **Both levels can hold any entity type** — level is chosen per-entity, not
-   per-type. Directory IS the scope.
+3. **Both levels can hold any shared-worldbuilding entity type** — level is chosen per-entity, not per-type. Directory IS the scope. [Narrowed from "any entity type" in follow-up docs commit — narrative types are story-level only. See D3 in design.md.]
 4. **Full directory scan + compact reporting** — CLI scans universe directories
    fully (nothing missed, cheap I/O). `story universe scan` outputs compact
    registry (id, name, type, path — no body). Agents read full entity files on

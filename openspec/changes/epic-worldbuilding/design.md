@@ -43,11 +43,10 @@ Key architectural constraints: fully synchronous I/O (`fs.readFileSync`/`fs.writ
 - **Rationale**: Natural directory hierarchy — shared entities are siblings of story projects. Putting `universe.md` inside a story project couples the universe to one story and creates ownership ambiguity.
 - **Alternatives considered**: Inside primary story project (rejected: ownership ambiguity). External reference by relative path (rejected: breaks if directories are moved).
 
-### D3: Both levels can hold any entity type — level is chosen per-entity, not per-type
+### D3: Both levels can hold any shared-worldbuilding entity type — level is chosen per-entity, not per-type
 
-- **Choice**: If an entity can appear in multiple stories, put it at the universe level. If it belongs to one story, put it in that story's directory. The directory IS the scope.
-- **Rationale**: A legendary character or a sacred mountain location can span stories. A type-based split (universe gets races/pantheons, story gets locations/artifacts) doesn't capture this — a character can be story-specific or universe-spanning depending on the entity, not the type.
-- **Alternatives considered**: Type-based split (rejected: doesn't capture cross-story characters). All worldbuilding at universe level with story tags (rejected: context explosion from scanning all files, tag maintenance burden, breaks per-entity CRUD pattern).
+- **Choice**: If a shared-worldbuilding entity (character, location, system, faction, artifact) can appear in multiple stories, put it at the universe level. If it belongs to one story, put it in that story's directory. The directory IS the scope. Narrative types (arcs, chapters, scenes, questions, promises, terms) remain story-level only — they are not scaffolded at the universe level.
+- **Rationale**: A legendary character or a sacred mountain location can span stories. A type-based split (universe gets races/pantheons, story gets locations/artifacts) doesn't capture this — a character can be story-specific or universe-spanning depending on the entity, not the type. Narrative entities are inherently story-scoped (a chapter belongs to one story's timeline) and are not shared across stories.
 
 ### D4: Full directory scan + compact reporting (no lazy resolution)
 
