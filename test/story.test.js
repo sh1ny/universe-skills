@@ -2293,4 +2293,26 @@ status: alive
     expect(report.validation.ok).toBe(false);
     expect(report.validation.errors.some((e) => e.includes("kebab-case"))).toBe(true);
   });
+  test("validateUniverse rejects stale schema-version", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, content.replace(/schema-version: 2/, "schema-version: 1"), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("universe.md schema-version must be 2"))).toBe(true);
+  });
+
+  test("universeReport surfaces stale schema-version error", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, content.replace(/schema-version: 2/, "schema-version: 1"), "utf8");
+    const report = universeReport(universeResult.root);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors.some((e) => e.includes("universe.md schema-version must be 2"))).toBe(true);
+  });
 });

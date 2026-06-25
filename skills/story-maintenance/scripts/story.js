@@ -1060,6 +1060,9 @@ function validateUniverse(root) {
       errors.push(`universe.md missing required frontmatter field: ${field}`);
     }
   }
+  if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
+    errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+  }
   const entityTypes = ["characters", "locations", "systems", "factions", "artifacts"];
   for (const type of entityTypes) {
     validateUniverseIds(universeEntities[type], type, errors);
