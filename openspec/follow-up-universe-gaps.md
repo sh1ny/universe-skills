@@ -1,7 +1,7 @@
 # Follow-Up: Universe Scaffold Gaps
 
 > Source: `openspec/changes/epic-worldbuilding/verify.md` §4 (W1–W5)
-> Status: W1 and W2b resolved in code commit `851e5a7`; W2a design/spec narrowing in the follow-up docs commit. W3–W5 remain non-blocking (133 tests pass, 100% coverage).
+> Status: W1 and W2b resolved in code commit `851e5a7`; W2a design/spec narrowing in the follow-up docs commit. W3–W5 resolved in commits `242d77e` (W5), `9e95c21` (W3), `9a41415` (W4). All gaps closed; 209 tests pass, 100% coverage.
 
 ---
 
@@ -43,37 +43,37 @@ W2a applied in the follow-up docs commit; W2b applied in code commit `851e5a7`.
 
 ---
 
-## W3 — No-op path-safety test (task 9.8)
+## ~~W3~~ — No-op path-safety test (task 9.8) — **RESOLVED**
 
-**Severity**: 📌 nit (test coverage)
+~~**Severity**: 📌 nit (test coverage)~~
 
-**Problem**: Task 9.8's "entity files outside `universeRoot` are refused" test (`test/story.test.js:1489-1498`) scans an empty universe and asserts `entities.characters=[]` and `entities.locations=[]`. It never creates an out-of-root file or asserts a refusal. Implementation IS safe (symlink test at lines 1500-1514 exercises the containment guard), but the specific scenario is untested.
+~~**Problem**: Task 9.8's "entity files outside `universeRoot` are refused" test (`test/story.test.js:1489-1498`) scans an empty universe and asserts `entities.characters=[]` and `entities.locations=[]`. It never creates an out-of-root file or asserts a refusal. Implementation IS safe (symlink test at lines 1500-1514 exercises the containment guard), but the specific scenario is untested.~~
 
-**Fix**: Replace the test body with one that creates an entity file at a path lexically outside `universeRoot` and verifies `scanUniverse` refuses to read it.
-
----
-
-## W4 — Stale AGENTS.md test inventory
-
-**Severity**: 📌 nit (documentation)
-
-**Problem**: AGENTS.md Test Files table (`AGENTS.md:238-247`) lists `story.test.js` as 23 tests (actual: ~79 across 9+ describe blocks including 7 universe groups) and `cli.test.js` as 8 tests (actual: ~22). No universe test groups mentioned.
-
-**Fix**: Update the table with current counts and add universe test group descriptions.
+~~**Fix**: Replace the test body with a sibling-outside-file-is-ignored test: create `characters/legend.md` inside `universeRoot` and `universe-outside-sibling/characters/rogue.md` outside it, then assert `scanUniverse` returns only `legend`.~~ **Applied in code commit `9e95c21`.**
 
 ---
 
-## W5 — Missing `schema-version` frontmatter removal test
+## ~~W4~~ — Stale AGENTS.md test inventory — **RESOLVED**
 
-**Severity**: 📌 nit (test coverage)
+~~**Severity**: 📌 nit (documentation)~~
 
-**Problem**: Spec defines two frontmatter completeness scenarios:
+~~**Problem**: AGENTS.md Test Files table (`AGENTS.md:238-247`) lists `story.test.js` as 23 tests (actual: ~79 across 9+ describe blocks including 7 universe groups) and `cli.test.js` as 8 tests (actual: ~22). No universe test groups mentioned.~~
+
+~~**Fix**: Update the table with current counts and add universe test group descriptions.~~ **Applied in commit `9a41415`.**
+
+---
+
+## ~~W5~~ — Missing `schema-version` frontmatter removal test — **RESOLVED**
+
+~~**Severity**: 📌 nit (test coverage)~~
+
+~~**Problem**: Spec defines two frontmatter completeness scenarios:
 - "Universe missing required frontmatter" (name missing → error) — **tested** (`test/story.test.js:1158-1168`)
-- "Universe missing schema-version" (schema-version missing → error) — **NOT tested**
+- "Universe missing schema-version" (schema-version missing → error) — **NOT tested**~~
 
-Implementation handles both via the loop at `src/story.js:665-670` iterating `UNIVERSE_REQUIRED_FRONTMATTER = ["name", "schema-version"]`.
+~~Implementation handles both via the loop at `src/story.js:665-670` iterating `UNIVERSE_REQUIRED_FRONTMATTER = ["name", "schema-version"]`.~~
 
-**Fix**: Add a test that removes `schema-version` from `universe.md` and asserts `validation.ok === false` and `validation.errors` contains a string including `"schema-version"`.
+~~**Fix**: Add a test that removes `schema-version` from `universe.md` and asserts `validation.ok === false` and `validation.errors` contains a string including `"schema-version"`.~~ **Applied in code commit `242d77e`.**
 
 ---
 
@@ -82,6 +82,6 @@ Implementation handles both via the loop at `src/story.js:665-670` iterating `UN
 ~~1. **W2a** — Narrow D3 in design.md and spec~~ ✅ Done
 ~~2. **W2b** — Extend cross-level validation for narrative → worldbuilding refs~~ ✅ Done
 ~~3. **W1** — Fix `validateUniverse` gating~~ ✅ Done
-4. **W5** — Add `schema-version` test (quick, closes spec scenario gap)
-5. **W3** — Fix no-op path-safety test
-6. **W4** — Update AGENTS.md counts (documentation only)
+~~4. **W5** — Add `schema-version` test (quick, closes spec scenario gap)~~ ✅ Done
+~~5. **W3** — Fix no-op path-safety test~~ ✅ Done
+~~6. **W4** — Update AGENTS.md counts (documentation only)~~ ✅ Done
