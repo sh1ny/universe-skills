@@ -94,7 +94,7 @@ git commit -m "test: add schema-version frontmatter removal test (W5)"
 Replace lines 1568-1577 (the entire test from `test("universe entity files outside universeRoot are refused", () => {` through its closing `});`) with:
 
 ```js
-  test("universe entity files outside universeRoot are refused", () => {
+  test("universe entity files outside universeRoot are ignored", () => {
     const cwd = makeTempDir();
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });
     // Create a legitimate character inside universeRoot
@@ -118,11 +118,11 @@ status: alive
   });
 ```
 
-The test name stays the same ("universe entity files outside universeRoot are refused") — the sibling-outside `rogue.md` is "refused" in that it's ignored, not present in results. This matches the design decision D1 in `design.md`.
+The test name is updated to "universe entity files outside universeRoot are ignored" — the sibling-outside `rogue.md` is ignored, not present in results. This matches the design decision D1 in `design.md`.
 
 - [ ] **Step 2: Run the test to verify it passes**
 
-Run: `bun test test/story.test.js --test-name-pattern "outside universeRoot are refused"`
+Run: `bun test test/story.test.js --test-name-pattern "outside universeRoot are ignored"`
 Expected: PASS (1 test)
 
 - [ ] **Step 3: Verify test count unchanged**

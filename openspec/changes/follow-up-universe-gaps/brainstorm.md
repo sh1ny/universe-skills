@@ -171,7 +171,7 @@ Key invariant: `readEntityFiles` can only read files physically inside entity su
 
 ### Risks / Trade-offs
 
-- **[Risk] W3 test name accuracy**: The test name "universe entity files outside universeRoot are refused" now matches its body — the sibling-outside `rogue.md` is refused (ignored, not returned). No rename needed.
+- **[Risk] W3 test name accuracy**: The test name was updated to "universe entity files outside universeRoot are ignored" — the sibling-outside `rogue.md` is ignored, not returned. The symlink directory test covers the throwing refusal guard.
 - **[Trade-off] W3 doesn't test traversal-path refusal directly**: Accepted because `readdirSync` makes it architecturally unreachable without symlinks. The sibling-outside test covers the realistic containment scenario; the symlink test (lines 1579-1593) covers the throwing guard.
 - **[Risk] W4 counts go stale again**: AGENTS.md test counts will drift as tests are added. No automated check exists. Accepted — this is a documentation nit, not a code risk.
 

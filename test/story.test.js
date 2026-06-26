@@ -1577,7 +1577,7 @@ status: alive
     expect(project.characters.find((c) => c.id === "legend")).toBeUndefined();
   });
 
-  test("universe entity files outside universeRoot are refused", () => {
+  test("universe entity files outside universeRoot are ignored", () => {
     const cwd = makeTempDir();
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });
     // Create a legitimate character inside universeRoot
