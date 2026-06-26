@@ -2103,6 +2103,34 @@ word-count: 0
     expect(validation.errors).toContain("Missing required universe path: characters/_index.md");
   });
 
+  test("validateUniverse rejects universe name deriving empty id from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Set universe.md name to punctuation-only — kebabCase returns ""
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const universeMd = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, universeMd.replace(/^name:.*$/m, 'name: "!!!"'), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("does not produce a valid kebab-case id"))).toBe(true);
+  });
+
+  test("validateUniverse rejects universe name deriving empty id from universe root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    // Set universe.md name to punctuation-only — kebabCase returns ""
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const universeMd = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, universeMd.replace(/^name:.*$/m, 'name: "!!!"'), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("does not produce a valid kebab-case id"))).toBe(true);
+  });
+
   test("validateUniverse rejects non-kebab story universe field", () => {
     const cwd = makeTempDir();
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });

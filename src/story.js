@@ -709,6 +709,10 @@ export function validateUniverse(root) {
       errors.push(`universe.md name must be a non-empty scalar`);
     }
     const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+    if (resolvedUniverseId === "") {
+      errors.push(`universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id`);
+      return { ok: false, errors, warnings };
+    }
     if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
       warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
       return { ok: true, errors, warnings };
@@ -762,6 +766,9 @@ export function validateUniverse(root) {
     requireScalar(universeMd.data, "name", "universe.md", errors);
   }
   const universeId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+  if (universeId === "") {
+    errors.push(`universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id`);
+  }
   for (const [relativePath, expectedType] of UNIVERSE_INDEX_SCHEMAS) {
     const fullPath = path.join(universeRoot, relativePath);
     if (!fs.existsSync(fullPath)) {
