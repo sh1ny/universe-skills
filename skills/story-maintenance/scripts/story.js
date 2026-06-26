@@ -634,6 +634,13 @@ function createUniverseProject(options) {
   if (fs.existsSync(path2.join(root, "story.md"))) {
     throw new Error(`${root} appears to be a story project (story.md found). Use a parent directory instead.`);
   }
+  let storyAncestor = path2.dirname(root);
+  while (storyAncestor !== path2.dirname(storyAncestor)) {
+    if (fs.existsSync(path2.join(storyAncestor, "story.md"))) {
+      throw new Error(`${root} is inside a story project (${path2.join(storyAncestor, "story.md")}). Use a directory outside the story tree.`);
+    }
+    storyAncestor = path2.dirname(storyAncestor);
+  }
   for (const starterFile of ["characters/_index.md", "worldbuilding/_index.md"]) {
     if (fs.existsSync(path2.join(root, starterFile))) {
       throw new Error(`${root} already contains ${starterFile}. Refusing to overwrite existing registry — move or remove it first.`);

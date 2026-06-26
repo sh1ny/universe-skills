@@ -2060,6 +2060,15 @@ word-count: 0
     expect(() => createUniverseProject({ name: "New Universe", cwd: storyRoot })).toThrow("appears to be a story project");
   });
 
+  test("createUniverseProject refuses to init inside a story subdir", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Existing Story", cwd });
+    const storyRoot = path.join(cwd, "existing-story");
+    const subdir = path.join(storyRoot, "subdir");
+    fs.mkdirSync(subdir, { recursive: true });
+    expect(() => createUniverseProject({ name: "Nested", cwd: subdir })).toThrow("is inside a story project");
+  });
+
   test("createUniverseProject refuses to overwrite existing _index.md", () => {
     const cwd = makeTempDir();
     fs.mkdirSync(path.join(cwd, "characters"), { recursive: true });
