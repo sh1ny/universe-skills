@@ -1144,6 +1144,12 @@ describe("story init universe auto-detection", () => {
     fs.writeFileSync(universeMdPath, universeMd.replace(/^name:.*$/m, 'name: "!!!"'), "utf8");
     expect(() => createStoryProject({ title: "My Tale", cwd: storiesDir })).toThrow("does not produce a valid kebab-case id");
   });
+
+  test("createStoryProject refuses to init in a universe root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    expect(() => createStoryProject({ title: "Fall", cwd: universeResult.root, dir: ".", force: true })).toThrow("Cannot create story in a universe root");
+  });
 });
 
 describe("universe validation", () => {

@@ -119,6 +119,9 @@ export function createStoryProject(options) {
 
   // Universe auto-detection: walk up from target root to find universe.md
   const universeRoot = resolveUniverseRoot(root);
+  if (universeRoot && path.resolve(universeRoot) === root) {
+    throw new Error(`Cannot create story in a universe root (${root}). Use a child directory instead, e.g. stories/${storyId}.`);
+  }
   let universeId = null;
   if (universeRoot) {
     const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);

@@ -568,6 +568,9 @@ function createStoryProject(options) {
   }
   const themes = normalizeList(options.themes, ["change"]);
   const universeRoot = resolveUniverseRoot(root);
+  if (universeRoot && path2.resolve(universeRoot) === root) {
+    throw new Error(`Cannot create story in a universe root (${root}). Use a child directory instead, e.g. stories/${storyId}.`);
+  }
   let universeId = null;
   if (universeRoot) {
     const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
