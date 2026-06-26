@@ -1120,6 +1120,30 @@ describe("story init universe auto-detection", () => {
     expect(project.universeRoot).toBeUndefined();
     expect(project.storyId).toBe("plain-story");
   });
+
+  test("createStoryProject throws when ancestor universe.md name is non-scalar", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    // Break universe.md by making name a list
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const universeMd = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, universeMd.replace(/^name:.*$/m, "name:\n  - Aetheria"), "utf8");
+    expect(() => createStoryProject({ title: "My Tale", cwd: storiesDir })).toThrow("missing or non-scalar name field");
+  });
+
+  test("createStoryProject throws when ancestor universe.md name produces empty kebab id", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    // Set universe.md name to punctuation-only — kebabCase returns ""
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const universeMd = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, universeMd.replace(/^name:.*$/m, 'name: "!!!"'), "utf8");
+    expect(() => createStoryProject({ title: "My Tale", cwd: storiesDir })).toThrow("does not produce a valid kebab-case id");
+  });
 });
 
 describe("universe validation", () => {

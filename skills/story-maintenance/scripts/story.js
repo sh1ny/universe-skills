@@ -571,8 +571,12 @@ function createStoryProject(options) {
   let universeId = null;
   if (universeRoot) {
     const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-    if (typeof universeMd.data.name === "string" && universeMd.data.name !== "") {
-      universeId = kebabCase(universeMd.data.name);
+    if (typeof universeMd.data.name !== "string" || universeMd.data.name === "") {
+      throw new Error(`Cannot create story: ancestor universe.md has a missing or non-scalar name field. Fix universe.md at ${path2.relative(process.cwd(), path2.join(universeRoot, "universe.md"))} before creating stories.`);
+    }
+    universeId = kebabCase(universeMd.data.name);
+    if (!universeId) {
+      throw new Error(`Cannot create story: ancestor universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id. Fix universe.md at ${path2.relative(process.cwd(), path2.join(universeRoot, "universe.md"))} before creating stories.`);
     }
   }
   fs.mkdirSync(path2.join(root, "characters"), { recursive: true });
