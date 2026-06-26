@@ -568,6 +568,12 @@ function createStoryProject(options) {
   }
   const themes = normalizeList(options.themes, ["change"]);
   const universeRoot = resolveUniverseRoot(root);
+  if (!universeRoot) {
+    const partialRoot = findPartialUniverseRoot(root);
+    if (partialRoot) {
+      throw new Error(`Cannot create story: ancestor directory ${partialRoot} has a partial universe scaffold (universe.md missing). Fix or restore universe.md before creating stories.`);
+    }
+  }
   if (universeRoot && path2.resolve(universeRoot) === root) {
     throw new Error(`Cannot create story in a universe root (${root}). Use a child directory instead, e.g. stories/${storyId}.`);
   }

@@ -119,6 +119,12 @@ export function createStoryProject(options) {
 
   // Universe auto-detection: walk up from target root to find universe.md
   const universeRoot = resolveUniverseRoot(root);
+  if (!universeRoot) {
+    const partialRoot = findPartialUniverseRoot(root);
+    if (partialRoot) {
+      throw new Error(`Cannot create story: ancestor directory ${partialRoot} has a partial universe scaffold (universe.md missing). Fix or restore universe.md before creating stories.`);
+    }
+  }
   if (universeRoot && path.resolve(universeRoot) === root) {
     throw new Error(`Cannot create story in a universe root (${root}). Use a child directory instead, e.g. stories/${storyId}.`);
   }

@@ -1150,6 +1150,16 @@ describe("story init universe auto-detection", () => {
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });
     expect(() => createStoryProject({ title: "Fall", cwd: universeResult.root, dir: ".", force: true })).toThrow("Cannot create story in a universe root");
   });
+
+  test("createStoryProject refuses to init under partial universe scaffold", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(universeResult.root, "universe.md"));
+    expect(() => createStoryProject({ title: "My Tale", cwd: storiesDir })).toThrow("partial universe scaffold");
+  });
 });
 
 describe("universe validation", () => {
