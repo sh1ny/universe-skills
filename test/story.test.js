@@ -1209,6 +1209,18 @@ status: alive
     expect(validation.errors.some((e) => e.includes("name"))).toBe(true);
   });
 
+  test("validates universe.md schema-version frontmatter", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMdPath = path.join(result.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    const broken = content.replace(/schema-version: 2\n/, "");
+    fs.writeFileSync(universeMdPath, broken, "utf8");
+    const validation = validateUniverse(result.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("schema-version"))).toBe(true);
+  });
+
   test("cross-level reference to universe location resolves from story root", () => {
     const cwd = makeTempDir();
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });

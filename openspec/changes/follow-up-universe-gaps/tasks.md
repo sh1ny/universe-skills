@@ -1,7 +1,7 @@
 ## 1. Schema-Version Frontmatter Removal Test (W5)
 
-- [ ] 1.1 Add a test in the `universe validation` group of `test/story.test.js` that removes the `schema-version: 2\n` line from `universe.md` frontmatter and asserts `validateUniverse` returns `ok === false` with an error containing `schema-version`
-- [ ] 1.2 Verify the new test removes only `schema-version` (not `name`) so it is independent from the existing name-removal test at lines 1200-1209
+- [x] 1.1 Add a test in the `universe validation` group of `test/story.test.js` that removes the `schema-version: 2\n` line from `universe.md` frontmatter and asserts `validateUniverse` returns `ok === false` with an error containing `schema-version`
+- [x] 1.2 Verify the new test removes only `schema-version` (not `name`) so it is independent from the existing name-removal test at lines 1200-1209
 
 ## 2. Universe Path-Safety Sibling Containment Test (W3)
 
