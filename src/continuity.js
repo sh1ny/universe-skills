@@ -14,6 +14,27 @@ export function checkContinuity(project) {
     latestChapter: project.chapters.reduce((max, chapter) => Math.max(max, chapter.number), 0)
   };
 
+  // When a story is linked to a universe, augment context maps with universe-level
+  // entities so continuity state entries referencing shared entities resolve correctly.
+  if (project.universe) {
+    for (const character of project.universe.characters) {
+      if (!context.characters.has(character.id)) {
+        context.characters.set(character.id, character);
+      }
+    }
+    for (const location of project.universe.locations) {
+      context.locations.add(location.id);
+    }
+    for (const artifact of project.universe.artifacts) {
+      if (!context.artifacts.has(artifact.id)) {
+        context.artifacts.set(artifact.id, artifact);
+      }
+    }
+    for (const faction of project.universe.factions) {
+      context.factions.add(faction.id);
+    }
+  }
+
   checkCharacterDeaths(project, context, errors);
   checkChapterCasts(project, warnings);
   checkSceneCasts(project, warnings);
@@ -27,7 +48,30 @@ export function checkContinuity(project) {
 }
 
 function checkCharacterDeaths(project, context, errors) {
-  for (const character of project.characters) {
+  // Build the list of characters to death-check: all story characters,
+  // plus universe characters that are actually cast in this story's
+  // chapters/scenes (pov or characters list). An unused shared character
+  // with died-in from another story should not trigger errors here.
+  const deathCheckCharacters = [...project.characters];
+  const deathCheckIds = new Set(project.characters.map((c) => c.id));
+  if (project.universe) {
+    const castIds = new Set();
+    for (const chapter of project.chapters) {
+      if (chapter.pov) castIds.add(chapter.pov);
+      for (const id of chapter.characters) castIds.add(id);
+    }
+    for (const scene of project.scenes) {
+      if (scene.pov) castIds.add(scene.pov);
+      for (const id of scene.characters) castIds.add(id);
+    }
+    for (const character of project.universe.characters) {
+      if (castIds.has(character.id) && !deathCheckIds.has(character.id)) {
+        deathCheckCharacters.push(character);
+      }
+    }
+  }
+
+  for (const character of deathCheckCharacters) {
     if (!character.diedIn) {
       continue;
     }

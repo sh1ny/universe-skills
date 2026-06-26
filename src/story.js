@@ -56,6 +56,22 @@ const ARTIFACT_STATUSES = new Set(["active", "lost", "destroyed", "hidden", "tra
 const QUESTION_STATUSES = new Set(["open", "answered", "resolved", "dropped"]);
 const PROMISE_STATUSES = new Set(["planned", "planted", "paid-off", "dropped"]);
 const TERM_CATEGORIES = new Set(["person", "place", "faction", "artifact", "concept", "term", "other"]);
+export const UNIVERSE_REQUIRED_PATHS = [
+  "universe.md",
+  "characters/_index.md",
+  "worldbuilding/_index.md",
+  "worldbuilding/locations",
+  "worldbuilding/systems",
+  "worldbuilding/factions",
+  "worldbuilding/artifacts"
+];
+
+export const UNIVERSE_INDEX_SCHEMAS = [
+  [path.join("characters", "_index.md"), "character-registry"],
+  [path.join("worldbuilding", "_index.md"), "world-registry"]
+];
+
+export const UNIVERSE_REQUIRED_FRONTMATTER = ["name", "schema-version"];
 
 const RELATIONSHIP_INVERSES = new Map([
   ["parent", "child"],
@@ -100,6 +116,30 @@ export function createStoryProject(options) {
   }
 
   const themes = normalizeList(options.themes, ["change"]);
+
+  // Universe auto-detection: walk up from target root to find universe.md
+  const universeRoot = resolveUniverseRoot(root);
+  if (!universeRoot) {
+    const partialRoot = findPartialUniverseRoot(root);
+    if (partialRoot) {
+      throw new Error(`Cannot create story: ancestor directory ${partialRoot} has a partial universe scaffold (universe.md missing). Fix or restore universe.md before creating stories.`);
+    }
+  }
+  if (universeRoot && path.resolve(universeRoot) === root) {
+    throw new Error(`Cannot create story in a universe root (${root}). Use a child directory instead, e.g. stories/${storyId}.`);
+  }
+  let universeId = null;
+  if (universeRoot) {
+    const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+    if (typeof universeMd.data.name !== "string" || universeMd.data.name === "") {
+      throw new Error(`Cannot create story: ancestor universe.md has a missing or non-scalar name field. Fix universe.md at ${path.relative(process.cwd(), path.join(universeRoot, "universe.md"))} before creating stories.`);
+    }
+    universeId = kebabCase(universeMd.data.name);
+    if (!universeId) {
+      throw new Error(`Cannot create story: ancestor universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id. Fix universe.md at ${path.relative(process.cwd(), path.join(universeRoot, "universe.md"))} before creating stories.`);
+    }
+  }
+
   fs.mkdirSync(path.join(root, "characters"), { recursive: true });
   fs.mkdirSync(path.join(root, "worldbuilding", "locations"), { recursive: true });
   fs.mkdirSync(path.join(root, "worldbuilding", "systems"), { recursive: true });
@@ -121,7 +161,8 @@ export function createStoryProject(options) {
     themes,
     pov: options.pov ?? "third-person-limited",
     tense: options.tense ?? "past",
-    synopsis: options.synopsis ?? "Add a 2-3 sentence synopsis here."
+    synopsis: options.synopsis ?? "Add a 2-3 sentence synopsis here.",
+    universe: universeId
   }), { root });
   writeFile(path.join(root, "characters", "_index.md"), characterIndex(storyId, [], "", ""), { root });
   writeFile(path.join(root, "worldbuilding", "_index.md"), worldIndex(storyId, [], [], [], [], ""), { root });
@@ -137,12 +178,79 @@ export function createStoryProject(options) {
   return { root, storyId, files: REQUIRED_PATHS.filter((entry) => entry.endsWith(".md")) };
 }
 
+export function createUniverseProject(options) {
+  const name = String(options.name ?? "").trim();
+  if (!name) {
+    throw new Error("A universe name is required");
+  }
+
+  const universeId = kebabCase(name);
+  if (!universeId) {
+    throw new Error(`Universe name '${name}' does not produce a valid kebab-case id`);
+  }
+  const displayName = titleCaseSlug(universeId);
+  const root = path.resolve(options.cwd ?? process.cwd(), options.dir ?? ".");
+  // Canonicalize the path to resist symlink bypass: resolve the nearest
+  // existing ancestor with realpathSync, then rejoin the non-existent tail.
+  // This catches symlinks in intermediate path components (e.g. --dir link/child).
+  let resolvedRoot = root;
+  {
+    let existing = root;
+    const tail = [];
+    while (!fs.existsSync(existing)) {
+      tail.unshift(path.basename(existing));
+      existing = path.dirname(existing);
+    }
+    resolvedRoot = fs.realpathSync(existing);
+    if (tail.length > 0) {
+      resolvedRoot = path.join(resolvedRoot, ...tail);
+    }
+  }
+  if (fs.existsSync(path.join(resolvedRoot, "universe.md"))) {
+    throw new Error(`${root} already contains a universe.md`);
+  }
+  if (fs.existsSync(path.join(resolvedRoot, "story.md"))) {
+    throw new Error(`${root} appears to be a story project (story.md found). Use a parent directory instead.`);
+  }
+  // Walk ancestors to prevent nesting a universe inside a story tree
+  let storyAncestor = path.dirname(resolvedRoot);
+  while (storyAncestor !== path.dirname(storyAncestor)) {
+    if (fs.existsSync(path.join(storyAncestor, "story.md"))) {
+      throw new Error(`${root} is inside a story project (${path.join(storyAncestor, "story.md")}). Use a directory outside the story tree.`);
+    }
+    storyAncestor = path.dirname(storyAncestor);
+  }
+  for (const starterFile of ["characters/_index.md", "worldbuilding/_index.md"]) {
+    if (fs.existsSync(path.join(root, starterFile))) {
+      throw new Error(`${root} already contains ${starterFile}. Refusing to overwrite existing registry — move or remove it first.`);
+    }
+  }
+
+  const changed = [];
+  ensureDirectory(path.join(root, "characters"), changed, root);
+  ensureDirectory(path.join(root, "worldbuilding", "locations"), changed, root);
+  ensureDirectory(path.join(root, "worldbuilding", "systems"), changed, root);
+  ensureDirectory(path.join(root, "worldbuilding", "factions"), changed, root);
+  ensureDirectory(path.join(root, "worldbuilding", "artifacts"), changed, root);
+
+  writeFile(path.join(root, "universe.md"), universeBible({
+    name: displayName,
+    genre: options.genre ?? "fiction",
+    tone: options.tone ?? "epic",
+    themes: normalizeList(options.themes, ["change"])
+  }), { root });
+  writeFile(path.join(root, "characters", "_index.md"), characterIndex(universeId, [], "", ""), { root });
+  writeFile(path.join(root, "worldbuilding", "_index.md"), worldIndex(universeId, [], [], [], [], ""), { root });
+
+  return { root, universeId, files: UNIVERSE_REQUIRED_PATHS.filter((entry) => entry.endsWith(".md")) };
+}
+
 export function scanProject(root) {
   const projectRoot = path.resolve(root);
   const story = readMarkdown(path.join(projectRoot, "story.md"), projectRoot);
   const storyId = kebabCase(story.data.title ?? path.basename(projectRoot));
 
-  return {
+  const project = {
     root: projectRoot,
     story,
     storyId,
@@ -258,6 +366,89 @@ export function scanProject(root) {
       ? readMarkdown(path.join(projectRoot, "continuity", "state.md"), projectRoot)
       : null
   };
+
+  if (story.data.universe) {
+    const universeRoot = resolveUniverseRoot(projectRoot);
+    if (universeRoot) {
+      const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+      const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+      // Only attach the universe if the resolved id matches the story's opt-in field.
+      // A mismatch means the story was moved under the wrong universe — treat as
+      // standalone so continuity/report/doctor don't validate against wrong entities.
+      if (resolvedUniverseId && resolvedUniverseId === story.data.universe) {
+        project.universe = scanUniverse(universeRoot);
+        project.universeRoot = universeRoot;
+      }
+    }
+  }
+
+  return project;
+}
+
+export function resolveUniverseRoot(targetPath) {
+  let current = path.resolve(targetPath);
+  if (fs.existsSync(path.join(current, "universe.md"))) {
+    return current;
+  }
+
+  while (true) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+    if (fs.existsSync(path.join(current, "universe.md"))) {
+      return current;
+    }
+  }
+}
+
+export function scanUniverse(universeRoot) {
+  const resolvedRoot = path.resolve(universeRoot);
+  return {
+    characters: readEntityFiles(resolvedRoot, "characters", (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      role: data.role ?? "",
+      status: data.status ?? "",
+      diedIn: data["died-in"] ?? "",
+      relationships: asArray(data.relationships),
+      locations: asArray(data.locations)
+    })),
+    locations: readEntityFiles(resolvedRoot, path.join("worldbuilding", "locations"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      region: data.region ?? "",
+      notableCharacters: asArray(data["notable-characters"])
+    })),
+    systems: readEntityFiles(resolvedRoot, path.join("worldbuilding", "systems"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? ""
+    })),
+    factions: readEntityFiles(resolvedRoot, path.join("worldbuilding", "factions"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      status: data.status ?? "",
+      members: asArray(data.members),
+      locations: asArray(data.locations)
+    })),
+    artifacts: readEntityFiles(resolvedRoot, path.join("worldbuilding", "artifacts"), (id, file, data) => ({
+      id,
+      file,
+      name: data.name ?? titleCaseSlug(id),
+      type: data.type ?? "",
+      status: data.status ?? "",
+      owner: data.owner ?? "",
+      location: data.location ?? ""
+    }))
+  };
 }
 
 export function validateProject(root) {
@@ -336,15 +527,27 @@ export function validateLinks(root) {
   const chapters = new Map(project.chapters.map((item) => [item.id, item]));
   const arcs = new Map(project.arcs.map((item) => [item.id, item]));
   const factions = new Map(project.factions.map((item) => [item.id, item]));
+  // Build combined existence maps (story + universe) so that references to
+  // universe-level entities pass existence checks. Backlink enforcement stays
+  // story-only — universe entities are referenced by many stories and must
+  // not carry per-story backlinks.
+  const allCharacters = new Map(characters);
+  const allLocations = new Map(locations);
+  const allFactions = new Map(factions);
+  if (project.universe) {
+    for (const c of project.universe.characters) { allCharacters.set(c.id, c); }
+    for (const l of project.universe.locations) { allLocations.set(l.id, l); }
+    for (const f of project.universe.factions) { allFactions.set(f.id, f); }
+  }
 
   for (const character of project.characters) {
     for (const relationship of character.relationships) {
       const target = relationship.character;
-      if (!characters.has(target)) {
+      if (!allCharacters.has(target)) {
         errors.push(`${relative(project, character.file)} references missing character ${target}`);
-      } else if (!characters.get(target).relationships.some((entry) => entry.character === character.id)) {
+      } else if (characters.has(target) && !characters.get(target).relationships.some((entry) => entry.character === character.id)) {
         errors.push(`${relative(project, character.file)} relationship to ${target} is missing backlink`);
-      } else {
+      } else if (characters.has(target)) {
         const backlink = characters.get(target).relationships.find((entry) => entry.character === character.id);
         const expectedType = inverseRelationshipType(relationship.type);
         if (expectedType && backlink.type !== expectedType) {
@@ -354,9 +557,9 @@ export function validateLinks(root) {
     }
 
     for (const locationId of character.locations) {
-      if (!locations.has(locationId)) {
+      if (!allLocations.has(locationId)) {
         errors.push(`${relative(project, character.file)} references missing location ${locationId}`);
-      } else if (!locations.get(locationId).notableCharacters.includes(character.id)) {
+      } else if (locations.has(locationId) && !locations.get(locationId).notableCharacters.includes(character.id)) {
         errors.push(`${relative(project, character.file)} location ${locationId} is missing notable-character backlink`);
       }
     }
@@ -364,9 +567,9 @@ export function validateLinks(root) {
 
   for (const location of project.locations) {
     for (const characterId of location.notableCharacters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, location.file)} references missing character ${characterId}`);
-      } else if (!characters.get(characterId).locations.includes(location.id)) {
+      } else if (characters.has(characterId) && !characters.get(characterId).locations.includes(location.id)) {
         errors.push(`${relative(project, location.file)} notable character ${characterId} is missing location backlink`);
       }
     }
@@ -374,24 +577,24 @@ export function validateLinks(root) {
 
   for (const arc of project.arcs) {
     for (const characterId of arc.characters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, arc.file)} references missing character ${characterId}`);
       }
     }
   }
 
   for (const chapter of project.chapters) {
-    if (chapter.pov && !characters.has(chapter.pov)) {
+    if (chapter.pov && !allCharacters.has(chapter.pov)) {
       errors.push(`${relative(project, chapter.file)} references missing POV character ${chapter.pov}`);
     }
 
     for (const characterId of chapter.characters.concat(chapter.mentions)) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, chapter.file)} references missing character ${characterId}`);
       }
     }
     for (const locationId of chapter.locations) {
-      if (!locations.has(locationId)) {
+      if (!allLocations.has(locationId)) {
         errors.push(`${relative(project, chapter.file)} references missing location ${locationId}`);
       }
     }
@@ -404,22 +607,22 @@ export function validateLinks(root) {
 
   for (const faction of project.factions) {
     for (const characterId of faction.members) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, faction.file)} references missing member ${characterId}`);
       }
     }
     for (const locationId of faction.locations) {
-      if (!locations.has(locationId)) {
+      if (!allLocations.has(locationId)) {
         errors.push(`${relative(project, faction.file)} references missing location ${locationId}`);
       }
     }
   }
 
   for (const artifact of project.artifacts) {
-    if (artifact.owner && !characters.has(artifact.owner) && !factions.has(artifact.owner)) {
+    if (artifact.owner && !allCharacters.has(artifact.owner) && !allFactions.has(artifact.owner)) {
       errors.push(`${relative(project, artifact.file)} references missing owner ${artifact.owner}`);
     }
-    if (artifact.location && !locations.has(artifact.location)) {
+    if (artifact.location && !allLocations.has(artifact.location)) {
       errors.push(`${relative(project, artifact.file)} references missing location ${artifact.location}`);
     }
   }
@@ -428,14 +631,14 @@ export function validateLinks(root) {
     if (scene.chapter && !chapters.has(scene.chapter)) {
       errors.push(`${relative(project, scene.file)} references missing chapter ${scene.chapter}`);
     }
-    if (scene.pov && !characters.has(scene.pov)) {
+    if (scene.pov && !allCharacters.has(scene.pov)) {
       errors.push(`${relative(project, scene.file)} references missing POV character ${scene.pov}`);
     }
-    if (scene.location && !locations.has(scene.location)) {
+    if (scene.location && !allLocations.has(scene.location)) {
       errors.push(`${relative(project, scene.file)} references missing location ${scene.location}`);
     }
     for (const characterId of scene.characters.concat(scene.mentions)) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, scene.file)} references missing character ${characterId}`);
       }
     }
@@ -453,7 +656,7 @@ export function validateLinks(root) {
       }
     }
     for (const characterId of question.characters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, question.file)} references missing character ${characterId}`);
       }
     }
@@ -471,8 +674,440 @@ export function validateLinks(root) {
       }
     }
     for (const characterId of promise.characters) {
-      if (!characters.has(characterId)) {
+      if (!allCharacters.has(characterId)) {
         errors.push(`${relative(project, promise.file)} references missing character ${characterId}`);
+      }
+    }
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}
+
+export function validateUniverseIds(entities, type, errors) {
+  const seen = new Set();
+  for (const entity of entities) {
+    if (!isKebabId(entity.id)) {
+      errors.push(`Universe entity id must be kebab-case: ${entity.id} (${type})`);
+    }
+    if (seen.has(entity.id)) {
+      errors.push(`Duplicate entity id '${entity.id}' in universe ${type}`);
+    }
+    seen.add(entity.id);
+  }
+}
+
+export function validateUniverseIdUniqueness(entities, type, errors) {
+  const seen = new Set();
+  for (const entity of entities) {
+    if (seen.has(entity.id)) {
+      errors.push(`Duplicate entity id '${entity.id}' in universe ${type}`);
+    }
+    seen.add(entity.id);
+  }
+}
+
+
+// Walk up from a target directory looking for an ancestor with partial
+// universe scaffold paths (missing universe.md but other scaffold files
+// remain). Checks the target itself and each ancestor. Skips directories
+// that contain story.md (story scaffolds aren't universe scaffolds).
+function findPartialUniverseRoot(target) {
+  let cursor = path.resolve(target);
+  while (true) {
+    if (!fs.existsSync(path.join(cursor, "story.md"))) {
+      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
+        p !== "universe.md" && fs.existsSync(path.join(cursor, p))
+      );
+      if (hasScaffoldPath) {
+        return cursor;
+      }
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      return null;
+    }
+    cursor = parent;
+  }
+}
+
+export function validateUniverse(root) {
+  const resolvedRoot = path.resolve(root);
+  const errors = [];
+  const warnings = [];
+  if (!fs.existsSync(resolvedRoot)) {
+    errors.push(`Path does not exist: ${resolvedRoot}`);
+    return { ok: false, errors, warnings };
+  }
+  if (!fs.statSync(resolvedRoot).isDirectory()) {
+    errors.push(`Path is not a directory: ${resolvedRoot}`);
+    return { ok: false, errors, warnings };
+  }
+
+  // Determine if we are in a story root (has story.md)
+  const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
+  let storyData = null;
+  if (isStoryRoot) {
+    const story = readMarkdown(path.join(resolvedRoot, "story.md"), resolvedRoot);
+    storyData = story.data;
+  }
+
+  // Hoist universeRoot so both the opt-in block and scaffold fallback can set it.
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  let partialScaffold = false;
+
+  // Rule 4.6: Universe resolution warning
+  // If story.md has a universe field but resolveUniverseRoot returns null
+  if (isStoryRoot && storyData.universe !== undefined) {
+    if (typeof storyData.universe !== "string" || !isKebabId(storyData.universe) || storyData.universe !== storyData.universe.trim()) {
+      errors.push(`story.md universe field must be a kebab-case id — got: ${JSON.stringify(storyData.universe)}`);
+      return { ok: false, errors, warnings };
+    }
+    if (universeRoot === null) {
+      const partialRoot = findPartialUniverseRoot(resolvedRoot);
+      if (partialRoot) {
+        universeRoot = partialRoot;
+        partialScaffold = true;
+      } else {
+        warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
+        return { ok: true, errors, warnings };
+      }
+    }
+    if (!partialScaffold) {
+      // Verify the resolved universe.md id matches the story's universe field.
+      // A story moved under the wrong universe should be treated as "universe
+      // not found" — standalone mode — rather than running cross-level checks
+      // against the wrong shared entities.
+      const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+      if (universeMd.data.name !== undefined && (typeof universeMd.data.name !== "string" || universeMd.data.name === "")) {
+        errors.push(`universe.md name must be a non-empty scalar`);
+        return { ok: false, errors, warnings };
+      }
+      const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+      if (resolvedUniverseId === "") {
+        errors.push(`universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id`);
+        return { ok: false, errors, warnings };
+      }
+      if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
+        warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
+        return { ok: true, errors, warnings };
+      }
+    }
+  }
+  // If universeRoot is still null, walk up from the target looking for
+  // an ancestor with partial universe scaffold paths. This covers both
+  // non-story child dirs (e.g. stories/) and unlinked story roots.
+  if (universeRoot === null) {
+    universeRoot = findPartialUniverseRoot(resolvedRoot);
+  }
+  if (universeRoot === null) {
+    return { ok: true, errors, warnings };
+  }
+  // Story under a universe but not opted in falls through to normal
+  // universe validation (scaffold/frontmatter/entities) so broken
+  // ancestors are reported instead of silently returning OK.
+
+  // Scan universe entities using universeRoot (NOT storyRoot — D12 path-safety)
+  const universeEntities = scanUniverse(universeRoot);
+  // Rule 4.1: Universe scaffold path validation — every required path must exist.
+  // Without this, a partially deleted universe container (e.g. missing
+  // characters/_index.md) silently scans as empty and passes validation.
+  for (const requiredPath of UNIVERSE_REQUIRED_PATHS) {
+    if (!fs.existsSync(path.join(universeRoot, requiredPath))) {
+      errors.push(`Missing required universe path: ${requiredPath}`);
+    }
+  }
+
+  // Rule 4.5: universe.md frontmatter completeness check
+  // Skip if universe.md is missing (already reported by required-path loop)
+  const universeMdPath = path.join(universeRoot, "universe.md");
+  const hasUniverseMd = fs.existsSync(universeMdPath);
+  const universeMd = hasUniverseMd ? readMarkdown(universeMdPath, universeRoot) : { data: {} };
+  if (hasUniverseMd) {
+    for (const field of UNIVERSE_REQUIRED_FRONTMATTER) {
+      if (universeMd.data[field] === undefined || universeMd.data[field] === "") {
+        errors.push(`universe.md missing required frontmatter field: ${field}`);
+      }
+    }
+    if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
+      errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+    }
+    if (universeMd.data.name !== undefined && typeof universeMd.data.name !== "string") {
+      errors.push(`universe.md name must be a string`);
+    }
+  }
+  const universeId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+  if (universeId === "") {
+    errors.push(`universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id`);
+  }
+  for (const [relativePath, expectedType] of UNIVERSE_INDEX_SCHEMAS) {
+    const fullPath = path.join(universeRoot, relativePath);
+    if (!fs.existsSync(fullPath)) {
+      continue;
+    }
+    const indexData = readMarkdown(fullPath, universeRoot).data;
+    requireFields(indexData, ["type", "story"], `universe ${relativePath}`, errors);
+    requireScalar(indexData, "type", `universe ${relativePath}`, errors);
+    requireScalar(indexData, "story", `universe ${relativePath}`, errors);
+    if (indexData.type !== undefined && indexData.type !== expectedType) {
+      errors.push(`universe ${relativePath} type must be ${expectedType}`);
+    }
+    if (universeId && indexData.story !== undefined && indexData.story !== universeId) {
+      errors.push(`universe ${relativePath} story must be ${universeId}`);
+    }
+  }
+
+  // Rule 4.3: Universe entity id uniqueness. Kebab-case is checked by
+  // validateEntityId inside the entity validators below (Rule 4.3b).
+  const entityTypes = ["characters", "locations", "systems", "factions", "artifacts"];
+  for (const type of entityTypes) {
+    validateUniverseIdUniqueness(universeEntities[type], type, errors);
+  }
+  // Rule 4.3b: Universe entity frontmatter validation — run the same
+  // entity validators used for story-level entities against universe entities.
+  const universeProject = {
+    root: universeRoot,
+    characters: universeEntities.characters,
+    locations: universeEntities.locations,
+    systems: universeEntities.systems,
+    factions: universeEntities.factions,
+    artifacts: universeEntities.artifacts
+  };
+  validateCharacters(universeProject, errors);
+  validateLocations(universeProject, errors);
+  validateSystems(universeProject, errors);
+  validateFactions(universeProject, errors);
+  validateArtifacts(universeProject, errors);
+
+  // Rule 4.3c: Universe-internal reference resolution — check that
+  // references between universe entities resolve (character locations,
+  // faction members/locations, artifact owners/locations, location
+  // notable-characters). Same-level backlink enforcement is NOT applied.
+  const uniCharacters = new Map(universeEntities.characters.map((c) => [c.id, c]));
+  const uniLocations = new Map(universeEntities.locations.map((l) => [l.id, l]));
+  const uniFactions = new Map(universeEntities.factions.map((f) => [f.id, f]));
+  const uniArtifacts = new Map(universeEntities.artifacts.map((a) => [a.id, a]));
+  for (const character of universeEntities.characters) {
+    for (const locationId of character.locations) {
+      if (!uniLocations.has(locationId)) {
+        errors.push(`universe ${relative(universeProject, character.file)} references missing location ${locationId}`);
+      }
+    }
+    for (const relationship of character.relationships) {
+      if (!uniCharacters.has(relationship.character)) {
+        errors.push(`universe ${relative(universeProject, character.file)} references missing character ${relationship.character}`);
+      }
+    }
+  }
+  for (const location of universeEntities.locations) {
+    for (const characterId of location.notableCharacters) {
+      if (!uniCharacters.has(characterId)) {
+        errors.push(`universe ${relative(universeProject, location.file)} references missing character ${characterId}`);
+      }
+    }
+  }
+  for (const faction of universeEntities.factions) {
+    for (const characterId of faction.members) {
+      if (!uniCharacters.has(characterId)) {
+        errors.push(`universe ${relative(universeProject, faction.file)} references missing member ${characterId}`);
+      }
+    }
+    for (const locationId of faction.locations) {
+      if (!uniLocations.has(locationId)) {
+        errors.push(`universe ${relative(universeProject, faction.file)} references missing location ${locationId}`);
+      }
+    }
+  }
+  for (const artifact of universeEntities.artifacts) {
+    if (artifact.owner && !uniCharacters.has(artifact.owner) && !uniFactions.has(artifact.owner)) {
+      errors.push(`universe ${relative(universeProject, artifact.file)} references missing owner ${artifact.owner}`);
+    }
+    if (artifact.location && !uniLocations.has(artifact.location)) {
+      errors.push(`universe ${relative(universeProject, artifact.file)} references missing location ${artifact.location}`);
+    }
+  }
+
+  // Rules 4.2 and 4.4: Cross-level checks (only when story has opted into
+  // a universe via the `universe` frontmatter field — not mere directory proximity)
+  if (isStoryRoot && storyData.universe) {
+    const project = scanProject(resolvedRoot);
+
+    // Rule 4.4: No-shadowing validation
+    for (const type of entityTypes) {
+      const storyIds = new Set(project[type].map((e) => e.id));
+      for (const entity of universeEntities[type]) {
+        if (storyIds.has(entity.id)) {
+          errors.push(`Entity id '${entity.id}' exists at both story and universe level — shadowing is not allowed`);
+        }
+      }
+    }
+
+    // Rule 4.2: Cross-level reference resolution
+    // Build combined maps: story-level takes precedence — if found at story level,
+    // universe level is not consulted. JS new Map() keeps the LAST value for duplicate
+    // keys, so universe entries are spread first and story entries second, ensuring
+    // story-level overrides universe-level for any shared id. Existence-only check,
+    // NO backlink enforcement.
+    const combinedCharacters = new Map([
+      ...universeEntities.characters.map((c) => [c.id, c]),
+      ...project.characters.map((c) => [c.id, c])
+    ]);
+    const combinedLocations = new Map([
+      ...universeEntities.locations.map((l) => [l.id, l]),
+      ...project.locations.map((l) => [l.id, l])
+    ]);
+    const combinedFactions = new Map([
+      ...universeEntities.factions.map((f) => [f.id, f]),
+      ...project.factions.map((f) => [f.id, f])
+    ]);
+
+    // Check story entity references against combined maps
+    for (const character of project.characters) {
+      for (const relationship of character.relationships) {
+        if (!combinedCharacters.has(relationship.character)) {
+          errors.push(`Cross-level reference 'character: ${relationship.character}' does not resolve at story or universe level`);
+        }
+      }
+      for (const locationId of character.locations) {
+        if (!combinedLocations.has(locationId)) {
+          errors.push(`Cross-level reference 'locations: ${locationId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const location of project.locations) {
+      for (const characterId of location.notableCharacters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'notable-characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const faction of project.factions) {
+      for (const characterId of faction.members) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'members: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const locationId of faction.locations) {
+        if (!combinedLocations.has(locationId)) {
+          errors.push(`Cross-level reference 'locations: ${locationId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const artifact of project.artifacts) {
+      if (artifact.owner && !combinedCharacters.has(artifact.owner) && !combinedFactions.has(artifact.owner)) {
+        errors.push(`Cross-level reference 'owner: ${artifact.owner}' does not resolve at story or universe level`);
+      }
+      if (artifact.location && !combinedLocations.has(artifact.location)) {
+        errors.push(`Cross-level reference 'location: ${artifact.location}' does not resolve at story or universe level`);
+      }
+    }
+    // Rule 4.2: Manuscript references — chapters and scenes reference characters
+    // and locations in frontmatter. These must resolve against the combined
+    // story+universe maps, not just the story-only maps that validateLinks checks.
+    for (const chapter of project.chapters) {
+      if (chapter.pov && !combinedCharacters.has(chapter.pov)) {
+        errors.push(`Cross-level reference 'pov: ${chapter.pov}' does not resolve at story or universe level`);
+      }
+      for (const characterId of chapter.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const characterId of chapter.mentions) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'mentions: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const locationId of chapter.locations) {
+        if (!combinedLocations.has(locationId)) {
+          errors.push(`Cross-level reference 'locations: ${locationId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const scene of project.scenes) {
+      if (scene.pov && !combinedCharacters.has(scene.pov)) {
+        errors.push(`Cross-level reference 'pov: ${scene.pov}' does not resolve at story or universe level`);
+      }
+      if (scene.location && !combinedLocations.has(scene.location)) {
+        errors.push(`Cross-level reference 'location: ${scene.location}' does not resolve at story or universe level`);
+      }
+      for (const characterId of scene.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+      for (const characterId of scene.mentions) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'mentions: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    // Rule 4.2: Continuity entity references — arcs, questions, and promises
+    // all carry character lists that must resolve at story or universe level.
+    for (const arc of project.arcs) {
+      for (const characterId of arc.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const question of project.questions) {
+      for (const characterId of question.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+
+    for (const promise of project.promises) {
+      for (const characterId of promise.characters) {
+        if (!combinedCharacters.has(characterId)) {
+          errors.push(`Cross-level reference 'characters: ${characterId}' does not resolve at story or universe level`);
+        }
+      }
+    }
+    // Rule 4.2: Continuity state — character-state, knowledge-state, and
+    // object-state entries reference entities that may live at universe level.
+    // Only check cross-level resolution (not chronology/completion rules, which
+    // belong to `story continuity`). Mirror checkContinuityState's field checks.
+    if (project.continuity) {
+      const combinedArtifacts = new Map([
+        ...universeEntities.artifacts.map((a) => [a.id, a]),
+        ...project.artifacts.map((a) => [a.id, a])
+      ]);
+      const stateData = project.continuity.data;
+
+      for (const [index, entry] of (asArray(stateData["character-state"])).entries()) {
+        const label = `continuity/state.md character-state[${index}]`;
+        if (entry.character && !combinedCharacters.has(entry.character)) {
+          errors.push(`Cross-level reference 'character: ${entry.character}' does not resolve at story or universe level`);
+        }
+        if (entry.location && !combinedLocations.has(entry.location)) {
+          errors.push(`Cross-level reference 'location: ${entry.location}' does not resolve at story or universe level`);
+        }
+      }
+
+      for (const [index, entry] of (asArray(stateData["knowledge-state"])).entries()) {
+        if (entry.character && !combinedCharacters.has(entry.character)) {
+          errors.push(`Cross-level reference 'character: ${entry.character}' does not resolve at story or universe level`);
+        }
+      }
+
+      for (const [index, entry] of (asArray(stateData["object-state"])).entries()) {
+        if (entry.artifact && !combinedArtifacts.has(entry.artifact)) {
+          errors.push(`Cross-level reference 'artifact: ${entry.artifact}' does not resolve at story or universe level`);
+        }
+        if (entry.owner && !combinedCharacters.has(entry.owner) && !combinedFactions.has(entry.owner)) {
+          errors.push(`Cross-level reference 'owner: ${entry.owner}' does not resolve at story or universe level`);
+        }
+        if (entry.location && !combinedLocations.has(entry.location)) {
+          errors.push(`Cross-level reference 'location: ${entry.location}' does not resolve at story or universe level`);
+        }
       }
     }
   }
@@ -590,6 +1225,183 @@ export function formatProjectReport(report, options = {}) {
   if (options.actionable) {
     lines.push("", "Next Actions:");
     appendActionLines(lines, report.actions);
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+export function universeScan(root) {
+  const universeRoot = resolveUniverseRoot(root);
+  if (universeRoot === null) {
+    return null;
+  }
+
+  const entities = scanUniverse(universeRoot);
+  const compact = [];
+
+  for (const character of entities.characters) {
+    compact.push({ id: character.id, name: character.name, type: "character", file: path.relative(universeRoot, character.file) });
+  }
+  for (const location of entities.locations) {
+    compact.push({ id: location.id, name: location.name, type: "location", file: path.relative(universeRoot, location.file) });
+  }
+  for (const system of entities.systems) {
+    compact.push({ id: system.id, name: system.name, type: "system", file: path.relative(universeRoot, system.file) });
+  }
+  for (const faction of entities.factions) {
+    compact.push({ id: faction.id, name: faction.name, type: "faction", file: path.relative(universeRoot, faction.file) });
+  }
+  for (const artifact of entities.artifacts) {
+    compact.push({ id: artifact.id, name: artifact.name, type: "artifact", file: path.relative(universeRoot, artifact.file) });
+  }
+
+  return compact;
+}
+
+export function formatUniverseScan(result) {
+  if (result === null) {
+    return "No universe found\n";
+  }
+
+  if (result.length === 0) {
+    return "Universe is empty (no entities)\n";
+  }
+
+  const lines = ["# Universe Entities", ""];
+  for (const entity of result) {
+    lines.push(`- [${entity.type}] ${entity.id} — ${entity.name} (${entity.file})`);
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+export function universeReport(root) {
+  const resolvedRoot = path.resolve(root);
+  if (!fs.existsSync(resolvedRoot)) {
+    return {
+      counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+      total: 0,
+      validation: { ok: false, errors: [`Path does not exist: ${resolvedRoot}`], warnings: [] }
+    };
+  }
+  if (!fs.statSync(resolvedRoot).isDirectory()) {
+    return {
+      counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+      total: 0,
+      validation: { ok: false, errors: [`Path is not a directory: ${resolvedRoot}`], warnings: [] }
+    };
+  }
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  if (universeRoot === null) {
+    universeRoot = findPartialUniverseRoot(resolvedRoot);
+    if (universeRoot === null) {
+      // If this is a story root with a universe field but no ancestor
+      // universe.md and no partial scaffold, delegate to validateUniverse
+      // to surface malformed field errors instead of printing "No universe found".
+      const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
+      if (isStoryRoot) {
+        const storyMd = readMarkdown(path.join(resolvedRoot, "story.md"), resolvedRoot);
+        if (storyMd.data.universe !== undefined) {
+          return {
+            counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+            total: 0,
+            validation: validateUniverse(resolvedRoot)
+          };
+        }
+      }
+      return null;
+    }
+  }
+
+  const entities = scanUniverse(universeRoot);
+
+  // Validate the universe itself. When run from an opted-in story root,
+  // validateUniverse(storyRoot) runs cross-level checks against the story.
+  // When run from a universe root or an unopted/mismatched story root,
+  // validate the universeRoot directly so entity IDs, frontmatter, and
+  // scaffold paths are checked — not a false-ok early return.
+  const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
+  let validation;
+  if (isStoryRoot) {
+    const storyMd = readMarkdown(path.join(resolvedRoot, "story.md"), resolvedRoot);
+    if (storyMd.data.universe !== undefined) {
+      // Validate the story's universe field first — if it's malformed,
+      // validateUniverse(storyRoot) will surface the error. Otherwise check
+      // the resolved id matches to decide cross-level vs universe-only.
+      const fieldValid = typeof storyMd.data.universe === "string" &&
+        isKebabId(storyMd.data.universe) && storyMd.data.universe === storyMd.data.universe.trim();
+      if (fieldValid) {
+        const hasUniverseMd = fs.existsSync(path.join(universeRoot, "universe.md"));
+        if (hasUniverseMd) {
+          const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+          const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+          if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+            // Opted-in story with matching universe — validate cross-level refs.
+            validation = validateUniverse(resolvedRoot);
+          } else {
+            // Id mismatch — validate the universe itself, not the story root.
+            validation = validateUniverse(universeRoot);
+          }
+        } else {
+          // Partial scaffold (universe.md missing) — validate to surface the error.
+          validation = validateUniverse(universeRoot);
+        }
+      } else {
+        // Malformed universe field — validate the story root to surface the error.
+        validation = validateUniverse(resolvedRoot);
+      }
+    } else {
+      // Story under a universe but not opted in — validate the universe itself.
+      validation = validateUniverse(universeRoot);
+    }
+  } else {
+    // Universe root — validate the universe directly.
+    validation = validateUniverse(universeRoot);
+  }
+
+  return {
+    counts: {
+      characters: entities.characters.length,
+      locations: entities.locations.length,
+      systems: entities.systems.length,
+      factions: entities.factions.length,
+      artifacts: entities.artifacts.length
+    },
+    total: entities.characters.length + entities.locations.length + entities.systems.length +
+           entities.factions.length + entities.artifacts.length,
+    validation
+  };
+}
+
+export function formatUniverseReport(report) {
+  if (report === null) {
+    return "No universe found\n";
+  }
+
+  const lines = [
+    "# Universe Report",
+    "",
+    "Entity Counts:",
+    `- Characters: ${report.counts.characters}`,
+    `- Locations: ${report.counts.locations}`,
+    `- Systems: ${report.counts.systems}`,
+    `- Factions: ${report.counts.factions}`,
+    `- Artifacts: ${report.counts.artifacts}`,
+    `- Total entities: ${report.total}`,
+    "",
+    `Validation: ${formatCheck(report.validation)}`
+  ];
+
+  if (report.validation.errors.length > 0) {
+    lines.push("", "Errors:");
+    for (const error of report.validation.errors) {
+      lines.push(`- ${error}`);
+    }
+  }
+  if (report.validation.warnings.length > 0) {
+    lines.push("", "Warnings:");
+    for (const warning of report.validation.warnings) {
+      lines.push(`- ${warning}`);
+    }
   }
 
   return `${lines.join("\n")}\n`;
@@ -875,7 +1687,7 @@ export function removeEntity(root, options) {
 }
 
 function storyBible(options) {
-  return `${stringifyFrontmatter({
+  const frontmatter = {
     title: options.title,
     "schema-version": STORY_SCHEMA_VERSION,
     genre: options.genre,
@@ -885,7 +1697,11 @@ function storyBible(options) {
     themes: options.themes,
     pov: options.pov,
     tense: options.tense
-  })}# ${options.title}
+  };
+  if (options.universe) {
+    frontmatter.universe = options.universe;
+  }
+  return `${stringifyFrontmatter(frontmatter)}# ${options.title}
 
 ## Synopsis
 
@@ -894,6 +1710,29 @@ ${options.synopsis}
 ## Tone & Style
 
 Add notes on the story's voice, texture, and emotional register.
+
+## Notes
+
+`;
+}
+
+function universeBible(options) {
+  const themes = normalizeList(options.themes, ["change"]);
+  return `${stringifyFrontmatter({
+    name: options.name,
+    "schema-version": STORY_SCHEMA_VERSION,
+    genre: options.genre ?? "fiction",
+    tone: options.tone ?? "epic",
+    themes
+  })}# ${options.name}
+
+## Cosmological Overview
+
+Describe the fundamental nature of the universe — cosmology, physics, magic systems, and metaphysical laws.
+
+## Universe History
+
+Provide a high-level summary of major epochs, cataclysms, and civilizational arcs.
 
 ## Notes
 
@@ -2099,6 +2938,13 @@ function validateStoryFrontmatter(project, errors) {
 
   if (data["schema-version"] !== undefined && data["schema-version"] !== STORY_SCHEMA_VERSION) {
     errors.push(`story.md schema-version must be ${STORY_SCHEMA_VERSION}`);
+  }
+
+  if (data.universe !== undefined) {
+    requireScalar(data, "universe", "story.md", errors);
+    if (typeof data.universe !== "string" || !isKebabId(data.universe) || data.universe !== data.universe.trim()) {
+      errors.push(`story.md universe must be a kebab-case id`);
+    }
   }
 }
 

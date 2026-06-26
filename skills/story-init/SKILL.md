@@ -260,3 +260,26 @@ These conventions apply across ALL story skills:
 - **Continuity state** lives in `continuity/state.md`, with open questions and promises tracked under `continuity/questions/` and `continuity/promises/`
 - **Markdown-first artifacts** - create and edit story content directly in the target `.md` files. Do not create project-local build scripts, generator scripts, or bulk writer scripts (for example `build-*.js`) to emit story files.
 - **CLI helpers stay external** - the only JavaScript helper agents should run is the installed or bundled Story CLI (`story`, `bun run story --`, or `story-maintenance/scripts/story.js`) for deterministic maintenance. Do not copy it into the user's story project, and remove any unavoidable scratch helper before finishing.
+
+## Universe Auto-Detection
+
+When running `story init`, the CLI automatically walks up the directory tree from the target directory to find a `universe.md` file. If found:
+
+1. The universe `name` field is read from `universe.md` frontmatter
+2. A `universe: <kebab-case-id>` field is written into `story.md` frontmatter
+3. The story is linked to the universe container
+
+If no `universe.md` is found, `story init` behaves exactly as before — no `universe` field is written.
+
+**Note:** The linkage is a warning, not an error. If the universe directory is later moved or deleted, the story remains functional in standalone mode. Remove the `universe` field from `story.md` to unlink explicitly.
+
+**Convention:** Place story projects in a `stories/` subdirectory inside the universe root:
+
+```
+my-universe/
+├── universe.md
+├── characters/
+├── worldbuilding/
+└── stories/
+    └── my-story/        ← story init here auto-detects parent universe
+```

@@ -91,3 +91,19 @@ Use the Story CLI when it is available. If `story` is not installed but the `sto
 - **`references/faction-template.md`** - Template for faction files
 - **`references/artifact-template.md`** - Template for artifact/object files
 - **`references/world-element-types.md`** - Detailed prompts for each system type (magic, political, technology, religion, economic, military, social)
+
+## Universe-Level Worldbuilding
+
+Locations, systems, factions, and artifacts can be placed at the universe level when they span multiple stories. See the `universe-management` skill for full guidance on creating and managing universe-level entities.
+
+**When to use universe level:**
+- A sacred mountain that appears in multiple stories → `universe/worldbuilding/locations/sacred-mountain.md`
+- A world-spanning magic system → `universe/worldbuilding/systems/high-magic.md`
+- An empire that affects all stories → `universe/worldbuilding/factions/imperium.md`
+- An ancient relic sought across stories → `universe/worldbuilding/artifacts/eternal-flame.md`
+
+**When to use story level:**
+- A one-off tavern → `story/worldbuilding/locations/tavern.md`
+- A story-specific power → `story/worldbuilding/systems/blood-magic.md`
+
+Story entities can reference universe entities by id. Cross-level references are validated by `story universe validate` (existence-only, no backlink enforcement).

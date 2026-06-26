@@ -6,18 +6,24 @@ import {
   computeWordCounts,
   createEntity,
   createStoryProject,
+  createUniverseProject,
   exportManuscript,
   formatActionReport,
   formatDoctorReport,
   formatProjectReport,
+  formatUniverseReport,
+  formatUniverseScan,
   migrateProject,
   projectReport,
   projectActions,
   reindexProject,
   removeEntity,
   renameEntity,
+  universeReport,
+  universeScan,
   validateLinks,
-  validateProject
+  validateProject,
+  validateUniverse
 } from "./story.js";
 
 const HELP = `Usage: story <command> [options]
@@ -42,11 +48,20 @@ Commands:
                     Remove an entity and scrub id references
   export [path]      Combine chapters into a manuscript markdown file
   build [path]       Build a disposable book artifact in dist/
+  universe init <name>
+                    Scaffold a universe project (parent container for stories)
+  universe scan [path]
+                    List universe entities (id, name, type, file)
+  universe validate [path]
+                    Validate universe structure, ids, and cross-level references
+  universe report [path]
+                    Summarize universe inventory and validation status
 
 Options:
   --title <name>            Story title for import
   --dir <path>              Target directory for init or import
-  --genre <name>            Story genre for init
+  --genre <name>            Genre for story or universe init
+  --tone <name>             Tone for universe init
   --sub-genre <name>        Story sub-genre for init
   --setting-era <name>      Setting era for init
   --theme <name>            Add a theme for init; repeatable
@@ -234,6 +249,46 @@ export function runCli(argv, io) {
       });
       io.stdout.write(`Built ${result.chapters} chapters as ${result.format} to ${result.outFile}\n`);
       return 0;
+    }
+
+    if (command === "universe") {
+      const subcommand = parsed.positionals[1];
+      if (subcommand === "init") {
+        const name = parsed.positionals.slice(2).join(" ");
+        if (!name) {
+          throw new Error("A universe name is required");
+        }
+        const result = createUniverseProject({
+          name,
+          cwd,
+          dir: parsed.options.dir,
+          genre: parsed.options.genre,
+          tone: parsed.options.tone,
+          themes: collectThemes(parsed.options)
+        });
+        io.stdout.write(`Created universe project: ${result.root}\n`);
+        return 0;
+      }
+
+      if (subcommand === "scan") {
+        const root = path.resolve(cwd, parsed.positionals[2] ?? ".");
+        io.stdout.write(formatUniverseScan(universeScan(root)));
+        return 0;
+      }
+
+      if (subcommand === "validate") {
+        const root = path.resolve(cwd, parsed.positionals[2] ?? ".");
+        return reportResult(io, validateUniverse(root), "Universe is valid", "Universe validation failed");
+      }
+
+      if (subcommand === "report") {
+        const root = path.resolve(cwd, parsed.positionals[2] ?? ".");
+        io.stdout.write(formatUniverseReport(universeReport(root)));
+        return 0;
+      }
+
+      io.stderr.write(`Unknown universe subcommand: ${subcommand}\n\n${HELP}`);
+      return 1;
     }
 
     io.stderr.write(`Unknown command: ${command}\n\n${HELP}`);

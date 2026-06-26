@@ -88,3 +88,37 @@ Use the Story CLI when it is available. If `story` is not installed but the `sto
 
 - **`references/character-template.md`** - Full blank template for character profiles
 - **`references/relationship-types.md`** - Complete relationship type reference with inverse pairs
+
+## Universe-Level Characters
+
+Characters that span multiple stories — legends, immortals, gods, recurring antagonists — should be placed at the universe level:
+
+```
+universe/characters/ancient-one.md
+```
+
+Use the same frontmatter format as story-level characters. Story entities can reference universe-level characters by id in relationship fields:
+
+```yaml
+---
+name: "Story Hero"
+role: protagonist
+status: alive
+relationships:
+  - character: ancient-one    # universe-level character
+    type: mentor
+locations:
+  - sacred-mountain            # universe-level location
+---
+```
+
+**When to use universe level:**
+- An immortal who appears across stories
+- A legendary figure referenced in backstory
+- A god worshipped by characters in multiple stories
+
+**When to use story level:**
+- A protagonist specific to one story
+- A minor character in a single story
+
+Cross-level references are validated by `story universe validate` — existence only, no backlink enforcement for cross-level (unlike same-level relationships which require bidirectional backlinks).
