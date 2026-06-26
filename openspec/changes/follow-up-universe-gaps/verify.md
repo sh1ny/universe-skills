@@ -67,9 +67,9 @@ Each design decision (D1–D3) was spot-checked against the corresponding spec r
 ## 5. Implementation Signal
 
 - [x] No unstaged files in the worktree
-- [x] All relevant commits have been pushed (commits are local; PR pending)
+- [ ] All relevant commits have been pushed (commits are local on `feature/follow-up-universe-gaps`; push pending PR creation)
 
-**Commit range**: `234d7bb..d53d90a` (7 commits)
+**Commit range**: `234d7bb..4d2d8ac` (8 commits)
 
 ---
 
