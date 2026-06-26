@@ -1108,6 +1108,10 @@ function validateUniverse(root) {
     errors.push(`Path does not exist: ${resolvedRoot}`);
     return { ok: false, errors, warnings };
   }
+  if (!fs.statSync(resolvedRoot).isDirectory()) {
+    errors.push(`Path is not a directory: ${resolvedRoot}`);
+    return { ok: false, errors, warnings };
+  }
   const isStoryRoot = fs.existsSync(path2.join(resolvedRoot, "story.md"));
   let storyData = null;
   if (isStoryRoot) {
@@ -1561,6 +1565,13 @@ function universeReport(root) {
       counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
       total: 0,
       validation: { ok: false, errors: [`Path does not exist: ${resolvedRoot}`], warnings: [] }
+    };
+  }
+  if (!fs.statSync(resolvedRoot).isDirectory()) {
+    return {
+      counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+      total: 0,
+      validation: { ok: false, errors: [`Path is not a directory: ${resolvedRoot}`], warnings: [] }
     };
   }
   let universeRoot = resolveUniverseRoot(resolvedRoot);

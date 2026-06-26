@@ -3069,4 +3069,29 @@ location: nowhere
     expect(report.validation.ok).toBe(false);
     expect(report.validation.errors).toContain("Missing required universe path: universe.md");
   });
+
+  test("validateUniverse rejects file target path", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "Fall", cwd: storiesDir });
+    const storyMdPath = path.join(storiesDir, "fall", "story.md");
+    const validation = validateUniverse(storyMdPath);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("Path is not a directory"))).toBe(true);
+  });
+
+  test("universeReport rejects file target path", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "Fall", cwd: storiesDir });
+    const storyMdPath = path.join(storiesDir, "fall", "story.md");
+    const report = universeReport(storyMdPath);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors.some((e) => e.includes("Path is not a directory"))).toBe(true);
+  });
 });
