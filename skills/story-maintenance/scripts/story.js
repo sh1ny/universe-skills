@@ -1115,10 +1115,22 @@ function validateUniverse(root) {
       }
     }
   }
-  if (universeRoot === null && !isStoryRoot) {
-    const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
-    if (hasScaffoldPath) {
-      universeRoot = resolvedRoot;
+  if (universeRoot === null) {
+    if (!isStoryRoot) {
+      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
+      if (hasScaffoldPath) {
+        universeRoot = resolvedRoot;
+      }
+    } else {
+      let cursor = resolvedRoot;
+      while (cursor !== path2.dirname(cursor)) {
+        cursor = path2.dirname(cursor);
+        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
+        if (hasScaffoldPath) {
+          universeRoot = cursor;
+          break;
+        }
+      }
     }
   }
   if (universeRoot === null) {
@@ -1526,6 +1538,13 @@ function formatUniverseScan(result) {
 }
 function universeReport(root) {
   const resolvedRoot = path2.resolve(root);
+  if (!fs.existsSync(resolvedRoot)) {
+    return {
+      counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+      total: 0,
+      validation: { ok: false, errors: [`Path does not exist: ${resolvedRoot}`], warnings: [] }
+    };
+  }
   let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
     const isStoryRoot2 = fs.existsSync(path2.join(resolvedRoot, "story.md"));

@@ -2987,4 +2987,32 @@ location: nowhere
     expect(report.validation.ok).toBe(false);
     expect(report.validation.errors).toContain("Missing required universe path: universe.md");
   });
+
+  test("validateUniverse reports missing universe.md in ancestor partial scaffold from unlinked story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "Unlinked", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "unlinked");
+    // Strip the universe opt-in field
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/^universe:.*\n/m, ""), "utf8");
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(universeResult.root, "universe.md"));
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors).toContain("Missing required universe path: universe.md");
+  });
+
+  test("universeReport reports error for nonexistent target path", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const nonexistentPath = path.join(universeResult.root, "stories", "typo-story");
+    const report = universeReport(nonexistentPath);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors.some((e) => e.includes("Path does not exist"))).toBe(true);
+  });
 });
