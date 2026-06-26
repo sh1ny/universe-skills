@@ -686,7 +686,11 @@ export function validateUniverse(root) {
 
   // Rule 4.6: Universe resolution warning
   // If story.md has a universe field but resolveUniverseRoot returns null
-  if (isStoryRoot && storyData.universe) {
+  if (isStoryRoot && storyData.universe !== undefined) {
+    if (typeof storyData.universe !== "string" || !isKebabId(storyData.universe) || storyData.universe !== storyData.universe.trim()) {
+      errors.push(`story.md universe field must be a kebab-case id — got: ${JSON.stringify(storyData.universe)}`);
+      return { ok: false, errors, warnings };
+    }
     const universeRoot = resolveUniverseRoot(resolvedRoot);
     if (universeRoot === null) {
       warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
@@ -1220,18 +1224,25 @@ export function universeReport(root) {
   let validation;
   if (isStoryRoot) {
     const storyMd = readMarkdown(path.join(resolvedRoot, "story.md"), resolvedRoot);
-    if (storyMd.data.universe) {
-      // Check the resolved universe id matches the story's universe field.
-      // A mismatch means validateUniverse(storyRoot) would early-return ok
-      // with a warning, hiding universe-level errors from the report.
-      const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-      const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
-      if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
-        // Opted-in story with matching universe — validate cross-level refs.
-        validation = validateUniverse(resolvedRoot);
+    if (storyMd.data.universe !== undefined) {
+      // Validate the story's universe field first — if it's malformed,
+      // validateUniverse(storyRoot) will surface the error. Otherwise check
+      // the resolved id matches to decide cross-level vs universe-only.
+      const fieldValid = typeof storyMd.data.universe === "string" &&
+        isKebabId(storyMd.data.universe) && storyMd.data.universe === storyMd.data.universe.trim();
+      if (fieldValid) {
+        const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+        const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+        if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+          // Opted-in story with matching universe — validate cross-level refs.
+          validation = validateUniverse(resolvedRoot);
+        } else {
+          // Id mismatch — validate the universe itself, not the story root.
+          validation = validateUniverse(universeRoot);
+        }
       } else {
-        // Id mismatch — validate the universe itself, not the story root.
-        validation = validateUniverse(universeRoot);
+        // Malformed universe field — validate the story root to surface the error.
+        validation = validateUniverse(resolvedRoot);
       }
     } else {
       // Story under a universe but not opted in — validate the universe itself.
@@ -2826,7 +2837,7 @@ function validateStoryFrontmatter(project, errors) {
 
   if (data.universe !== undefined) {
     requireScalar(data, "universe", "story.md", errors);
-    if (typeof data.universe !== "string" || !isKebabId(data.universe)) {
+    if (typeof data.universe !== "string" || !isKebabId(data.universe) || data.universe !== data.universe.trim()) {
       errors.push(`story.md universe must be a kebab-case id`);
     }
   }

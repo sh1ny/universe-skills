@@ -1398,6 +1398,22 @@ region: North
     expect(report.validation.errors).toContain("Missing required universe path: universe.md");
   });
 
+  test("universeReport surfaces malformed story universe field error from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: Aetheria"), "utf8");
+    const report = universeReport(storyRoot);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors[0]).toContain("must be a kebab-case id");
+  });
+
   test("universeReport on empty universe reports zero for each type", () => {
     const cwd = makeTempDir();
     const result = createUniverseProject({ name: "Aetheria", cwd });
@@ -2043,6 +2059,51 @@ word-count: 0
     expect(validation.ok).toBe(true);
     expect(validation.warnings.some((w) => w.includes("Universe 'wrong-universe' not found") && w.includes("resolved universe is 'aetheria'"))).toBe(true);
     expect(validation.errors).toEqual([]);
+  });
+
+  test("validateUniverse rejects non-kebab story universe field", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: Aetheria"), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors[0]).toContain("must be a kebab-case id");
+  });
+
+  test("validateUniverse rejects non-scalar story universe field", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe:\n  - Aetheria"), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors[0]).toContain("must be a kebab-case id");
+  });
+
+  test("validateUniverse rejects whitespace-padded kebab universe field", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: \" aetheria \""), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors[0]).toContain("must be a kebab-case id");
   });
 
   test("scanProject does not attach universe when id does not match", () => {

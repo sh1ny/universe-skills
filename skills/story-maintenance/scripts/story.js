@@ -1068,7 +1068,11 @@ function validateUniverse(root) {
     const story = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
     storyData = story.data;
   }
-  if (isStoryRoot && storyData.universe) {
+  if (isStoryRoot && storyData.universe !== undefined) {
+    if (typeof storyData.universe !== "string" || !isKebabId(storyData.universe) || storyData.universe !== storyData.universe.trim()) {
+      errors.push(`story.md universe field must be a kebab-case id — got: ${JSON.stringify(storyData.universe)}`);
+      return { ok: false, errors, warnings };
+    }
     const universeRoot2 = resolveUniverseRoot(resolvedRoot);
     if (universeRoot2 === null) {
       warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
@@ -1509,13 +1513,18 @@ function universeReport(root) {
   let validation;
   if (isStoryRoot) {
     const storyMd = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
-    if (storyMd.data.universe) {
-      const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-      const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
-      if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
-        validation = validateUniverse(resolvedRoot);
+    if (storyMd.data.universe !== undefined) {
+      const fieldValid = typeof storyMd.data.universe === "string" && isKebabId(storyMd.data.universe) && storyMd.data.universe === storyMd.data.universe.trim();
+      if (fieldValid) {
+        const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+        const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
+        if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+          validation = validateUniverse(resolvedRoot);
+        } else {
+          validation = validateUniverse(universeRoot);
+        }
       } else {
-        validation = validateUniverse(universeRoot);
+        validation = validateUniverse(resolvedRoot);
       }
     } else {
       validation = validateUniverse(universeRoot);
@@ -2925,7 +2934,7 @@ function validateStoryFrontmatter(project, errors) {
   }
   if (data.universe !== undefined) {
     requireScalar(data, "universe", "story.md", errors);
-    if (typeof data.universe !== "string" || !isKebabId(data.universe)) {
+    if (typeof data.universe !== "string" || !isKebabId(data.universe) || data.universe !== data.universe.trim()) {
       errors.push(`story.md universe must be a kebab-case id`);
     }
   }
