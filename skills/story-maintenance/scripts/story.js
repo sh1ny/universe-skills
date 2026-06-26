@@ -1075,32 +1075,46 @@ function validateUniverse(root) {
     const story = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
     storyData = story.data;
   }
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  let partialScaffold = false;
   if (isStoryRoot && storyData.universe !== undefined) {
     if (typeof storyData.universe !== "string" || !isKebabId(storyData.universe) || storyData.universe !== storyData.universe.trim()) {
       errors.push(`story.md universe field must be a kebab-case id — got: ${JSON.stringify(storyData.universe)}`);
       return { ok: false, errors, warnings };
     }
-    const universeRoot2 = resolveUniverseRoot(resolvedRoot);
-    if (universeRoot2 === null) {
-      warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
-      return { ok: true, errors, warnings };
+    if (universeRoot === null) {
+      let cursor = resolvedRoot;
+      while (cursor !== path2.dirname(cursor)) {
+        cursor = path2.dirname(cursor);
+        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
+        if (hasScaffoldPath) {
+          universeRoot = cursor;
+          partialScaffold = true;
+          break;
+        }
+      }
+      if (universeRoot === null) {
+        warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
+        return { ok: true, errors, warnings };
+      }
     }
-    const universeMd2 = readMarkdown(path2.join(universeRoot2, "universe.md"), universeRoot2);
-    if (universeMd2.data.name !== undefined && (typeof universeMd2.data.name !== "string" || universeMd2.data.name === "")) {
-      errors.push(`universe.md name must be a non-empty scalar`);
-      return { ok: false, errors, warnings };
-    }
-    const resolvedUniverseId = typeof universeMd2.data.name === "string" && universeMd2.data.name !== "" ? kebabCase(universeMd2.data.name) : null;
-    if (resolvedUniverseId === "") {
-      errors.push(`universe.md name '${universeMd2.data.name}' does not produce a valid kebab-case id`);
-      return { ok: false, errors, warnings };
-    }
-    if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
-      warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
-      return { ok: true, errors, warnings };
+    if (!partialScaffold) {
+      const universeMd2 = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+      if (universeMd2.data.name !== undefined && (typeof universeMd2.data.name !== "string" || universeMd2.data.name === "")) {
+        errors.push(`universe.md name must be a non-empty scalar`);
+        return { ok: false, errors, warnings };
+      }
+      const resolvedUniverseId = typeof universeMd2.data.name === "string" && universeMd2.data.name !== "" ? kebabCase(universeMd2.data.name) : null;
+      if (resolvedUniverseId === "") {
+        errors.push(`universe.md name '${universeMd2.data.name}' does not produce a valid kebab-case id`);
+        return { ok: false, errors, warnings };
+      }
+      if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
+        warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
+        return { ok: true, errors, warnings };
+      }
     }
   }
-  let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null && !isStoryRoot) {
     const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
     if (hasScaffoldPath) {
@@ -1520,6 +1534,16 @@ function universeReport(root) {
       if (hasScaffoldPath) {
         universeRoot = resolvedRoot;
       }
+    } else {
+      let cursor = resolvedRoot;
+      while (cursor !== path2.dirname(cursor)) {
+        cursor = path2.dirname(cursor);
+        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
+        if (hasScaffoldPath) {
+          universeRoot = cursor;
+          break;
+        }
+      }
     }
     if (universeRoot === null) {
       return null;
@@ -1533,10 +1557,15 @@ function universeReport(root) {
     if (storyMd.data.universe !== undefined) {
       const fieldValid = typeof storyMd.data.universe === "string" && isKebabId(storyMd.data.universe) && storyMd.data.universe === storyMd.data.universe.trim();
       if (fieldValid) {
-        const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
-        const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
-        if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
-          validation = validateUniverse(resolvedRoot);
+        const hasUniverseMd = fs.existsSync(path2.join(universeRoot, "universe.md"));
+        if (hasUniverseMd) {
+          const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
+          const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
+          if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+            validation = validateUniverse(resolvedRoot);
+          } else {
+            validation = validateUniverse(universeRoot);
+          }
         } else {
           validation = validateUniverse(universeRoot);
         }

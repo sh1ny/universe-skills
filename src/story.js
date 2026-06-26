@@ -691,6 +691,10 @@ export function validateUniverse(root) {
     storyData = story.data;
   }
 
+  // Hoist universeRoot so both the opt-in block and scaffold fallback can set it.
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  let partialScaffold = false;
+
   // Rule 4.6: Universe resolution warning
   // If story.md has a universe field but resolveUniverseRoot returns null
   if (isStoryRoot && storyData.universe !== undefined) {
@@ -698,35 +702,52 @@ export function validateUniverse(root) {
       errors.push(`story.md universe field must be a kebab-case id — got: ${JSON.stringify(storyData.universe)}`);
       return { ok: false, errors, warnings };
     }
-    const universeRoot = resolveUniverseRoot(resolvedRoot);
     if (universeRoot === null) {
-      warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
-      return { ok: true, errors, warnings };
+      // Check if an ancestor directory has partial universe scaffold paths
+      // (missing universe.md but other files remain). If so, treat it as
+      // the universe root so the required-path loop reports the missing
+      // universe.md instead of silently returning OK.
+      let cursor = resolvedRoot;
+      while (cursor !== path.dirname(cursor)) {
+        cursor = path.dirname(cursor);
+        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
+          p !== "universe.md" && fs.existsSync(path.join(cursor, p))
+        );
+        if (hasScaffoldPath) {
+          universeRoot = cursor;
+          partialScaffold = true;
+          break;
+        }
+      }
+      if (universeRoot === null) {
+        warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
+        return { ok: true, errors, warnings };
+      }
     }
-    // Verify the resolved universe.md id matches the story's universe field.
-    // A story moved under the wrong universe should be treated as "universe
-    // not found" — standalone mode — rather than running cross-level checks
-    // against the wrong shared entities.
-    const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-    if (universeMd.data.name !== undefined && (typeof universeMd.data.name !== "string" || universeMd.data.name === "")) {
-      errors.push(`universe.md name must be a non-empty scalar`);
-      return { ok: false, errors, warnings };
-    }
-    const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
-    if (resolvedUniverseId === "") {
-      errors.push(`universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id`);
-      return { ok: false, errors, warnings };
-    }
-    if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
-      warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
-      return { ok: true, errors, warnings };
+    if (!partialScaffold) {
+      // Verify the resolved universe.md id matches the story's universe field.
+      // A story moved under the wrong universe should be treated as "universe
+      // not found" — standalone mode — rather than running cross-level checks
+      // against the wrong shared entities.
+      const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+      if (universeMd.data.name !== undefined && (typeof universeMd.data.name !== "string" || universeMd.data.name === "")) {
+        errors.push(`universe.md name must be a non-empty scalar`);
+        return { ok: false, errors, warnings };
+      }
+      const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+      if (resolvedUniverseId === "") {
+        errors.push(`universe.md name '${universeMd.data.name}' does not produce a valid kebab-case id`);
+        return { ok: false, errors, warnings };
+      }
+      if (resolvedUniverseId && resolvedUniverseId !== storyData.universe) {
+        warnings.push(`Universe '${storyData.universe}' not found — resolved universe is '${resolvedUniverseId}'. Story works in standalone mode`);
+        return { ok: true, errors, warnings };
+      }
     }
   }
-  // Resolve the universe root. If resolveUniverseRoot returns null but
-  // the target directory contains other universe scaffold paths (e.g.
-  // characters/_index.md), treat it as the universe root so the
-  // required-path loop can report the missing universe.md.
-  let universeRoot = resolveUniverseRoot(resolvedRoot);
+  // For non-story roots, if resolveUniverseRoot returns null but the target
+  // directory contains other universe scaffold paths, treat it as the universe
+  // root so the required-path loop can report the missing universe.md.
   if (universeRoot === null && !isStoryRoot) {
     const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
       p !== "universe.md" && fs.existsSync(path.join(resolvedRoot, p))
@@ -1215,10 +1236,10 @@ export function universeReport(root) {
   let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
     // Mirror validateUniverse's partial-scaffold detection: if the target
-    // has other universe scaffold paths but is missing universe.md, treat
-    // it as the universe root so validation errors surface in the report
-    // instead of printing "No universe found". Only for non-story roots —
-    // story roots have their own characters/_index.md etc.
+    // (or an ancestor, for story roots) has other universe scaffold paths
+    // but is missing universe.md, treat it as the universe root so
+    // validation errors surface in the report instead of printing
+    // "No universe found".
     const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
     if (!isStoryRoot) {
       const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
@@ -1226,6 +1247,20 @@ export function universeReport(root) {
       );
       if (hasScaffoldPath) {
         universeRoot = resolvedRoot;
+      }
+    } else {
+      // Walk up ancestors looking for partial scaffold (missing universe.md
+      // but other scaffold files remain).
+      let cursor = resolvedRoot;
+      while (cursor !== path.dirname(cursor)) {
+        cursor = path.dirname(cursor);
+        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
+          p !== "universe.md" && fs.existsSync(path.join(cursor, p))
+        );
+        if (hasScaffoldPath) {
+          universeRoot = cursor;
+          break;
+        }
       }
     }
     if (universeRoot === null) {
@@ -1251,13 +1286,19 @@ export function universeReport(root) {
       const fieldValid = typeof storyMd.data.universe === "string" &&
         isKebabId(storyMd.data.universe) && storyMd.data.universe === storyMd.data.universe.trim();
       if (fieldValid) {
-        const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
-        const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
-        if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
-          // Opted-in story with matching universe — validate cross-level refs.
-          validation = validateUniverse(resolvedRoot);
+        const hasUniverseMd = fs.existsSync(path.join(universeRoot, "universe.md"));
+        if (hasUniverseMd) {
+          const universeMd = readMarkdown(path.join(universeRoot, "universe.md"), universeRoot);
+          const resolvedUniverseId = (typeof universeMd.data.name === "string" && universeMd.data.name !== "") ? kebabCase(universeMd.data.name) : null;
+          if (resolvedUniverseId && resolvedUniverseId === storyMd.data.universe) {
+            // Opted-in story with matching universe — validate cross-level refs.
+            validation = validateUniverse(resolvedRoot);
+          } else {
+            // Id mismatch — validate the universe itself, not the story root.
+            validation = validateUniverse(universeRoot);
+          }
         } else {
-          // Id mismatch — validate the universe itself, not the story root.
+          // Partial scaffold (universe.md missing) — validate to surface the error.
           validation = validateUniverse(universeRoot);
         }
       } else {

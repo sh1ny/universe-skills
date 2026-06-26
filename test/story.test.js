@@ -2958,4 +2958,33 @@ location: nowhere
     expect(validation.ok).toBe(false);
     expect(validation.errors.some((e) => e.includes("name must be a non-empty scalar"))).toBe(true);
   });
+
+  test("validateUniverse reports missing universe.md in ancestor partial scaffold from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(universeResult.root, "universe.md"));
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors).toContain("Missing required universe path: universe.md");
+  });
+
+  test("universeReport surfaces missing universe.md in ancestor partial scaffold from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(universeResult.root, "universe.md"));
+    const report = universeReport(storyRoot);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors).toContain("Missing required universe path: universe.md");
+  });
 });
