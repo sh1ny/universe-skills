@@ -1,7 +1,7 @@
 # Retrospective: follow-up-universe-gaps
 
 > Written: 2026-06-26 (after verify passed)
-> Commit range: `origin/main..HEAD` (symbolic; 11 commits as of verification run)
+> Commit range: `origin/main..HEAD` (symbolic; 11 implementation commits as of verification run, prior to committing this artifact)
 > Worktree: `.worktrees/follow-up-universe-gaps` (branch `feature/follow-up-universe-gaps-impl`, merged to `feature/follow-up-universe-gaps`)
 
 ---
@@ -10,7 +10,7 @@
 
 > Quantitative upfront data — subsequent Wins / Misses bullets reference these directly, avoiding per-line `[evidence: ...]` repetition.
 
-- **Commit range**: `origin/main..HEAD` — 11 commits
+- **Commit range**: `origin/main..HEAD` — 11 implementation commits (prior to committing this artifact)
 - **Diff size**: +646 / -26 lines across 11 files
 - **Tasks done**: 11/11 (`grep -cE '^\s*- \[x\]' tasks.md` → 11; regex allows sub-task indentation)
 - **Active hours**: ~3 (estimate: brainstorm + artifacts + implementation + verify cycle)

@@ -93,7 +93,7 @@ Spot-check whether `design.md` decisions are reflected in `specs/*.md` Requireme
 - [x] No unstaged implementation files in the worktree (excluding this verify.md artifact being created)
 - [x] All relevant commits are on branch `feature/follow-up-universe-gaps`
 
-**Commit range**: `origin/main..HEAD` (as of verification run) — 11 commits:
+**Commit range**: `origin/main..HEAD` — 11 implementation commits (prior to committing this verify/retrospective artifact):
 
 Implementation commits (subjects only, no SHAs to avoid stale-reference amend loops):
 
