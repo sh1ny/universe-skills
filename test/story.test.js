@@ -2805,7 +2805,7 @@ status: active
     fs.writeFileSync(universeMdPath, content.replace(/name: Aetheria/, "name:\n  - Aetheria"), "utf8");
     const validation = validateUniverse(universeResult.root);
     expect(validation.ok).toBe(false);
-    expect(validation.errors.some((e) => e.includes("name must be a scalar") || e.includes("name must be a non-empty scalar"))).toBe(true);
+    expect(validation.errors.some((e) => e.includes("name must be a string") || e.includes("name must be a non-empty scalar"))).toBe(true);
   });
   test("validateUniverse from story root rejects non-scalar universe name", () => {
     const cwd = makeTempDir();
@@ -2926,5 +2926,36 @@ location: nowhere
     const validation = validateUniverse(universeResult.root);
     expect(validation.ok).toBe(false);
     expect(validation.errors.some((e) => e.includes("references missing location nowhere"))).toBe(true);
+  });
+
+  test("createUniverseProject rejects name that kebabs to empty", () => {
+    const cwd = makeTempDir();
+    expect(() => createUniverseProject({ name: "!!!", cwd })).toThrow("does not produce a valid kebab-case id");
+  });
+
+  test("validateUniverse rejects numeric universe.md name from universe root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, content.replace(/^name:.*$/m, "name: 123"), "utf8");
+    const validation = validateUniverse(universeResult.root);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("name must be a string"))).toBe(true);
+  });
+
+  test("validateUniverse rejects numeric universe.md name from story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const content = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, content.replace(/^name:.*$/m, "name: 123"), "utf8");
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors.some((e) => e.includes("name must be a non-empty scalar"))).toBe(true);
   });
 });

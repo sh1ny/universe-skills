@@ -620,6 +620,9 @@ function createUniverseProject(options) {
     throw new Error("A universe name is required");
   }
   const universeId = kebabCase(name);
+  if (!universeId) {
+    throw new Error(`Universe name '${name}' does not produce a valid kebab-case id`);
+  }
   const displayName = titleCaseSlug(universeId);
   const root = path2.resolve(options.cwd ?? process.cwd(), options.dir ?? ".");
   if (fs.existsSync(path2.join(root, "universe.md"))) {
@@ -1085,6 +1088,7 @@ function validateUniverse(root) {
     const universeMd2 = readMarkdown(path2.join(universeRoot2, "universe.md"), universeRoot2);
     if (universeMd2.data.name !== undefined && (typeof universeMd2.data.name !== "string" || universeMd2.data.name === "")) {
       errors.push(`universe.md name must be a non-empty scalar`);
+      return { ok: false, errors, warnings };
     }
     const resolvedUniverseId = typeof universeMd2.data.name === "string" && universeMd2.data.name !== "" ? kebabCase(universeMd2.data.name) : null;
     if (resolvedUniverseId === "") {
@@ -1124,7 +1128,9 @@ function validateUniverse(root) {
     if (universeMd.data["schema-version"] !== undefined && universeMd.data["schema-version"] !== STORY_SCHEMA_VERSION) {
       errors.push(`universe.md schema-version must be ${STORY_SCHEMA_VERSION}`);
     }
-    requireScalar(universeMd.data, "name", "universe.md", errors);
+    if (universeMd.data.name !== undefined && typeof universeMd.data.name !== "string") {
+      errors.push(`universe.md name must be a string`);
+    }
   }
   const universeId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
   if (universeId === "") {
