@@ -11,9 +11,9 @@
 
 ## 3. AGENTS.md Test Inventory Accuracy (W4)
 
-- [ ] 3.1 Run `bun test` to obtain actual test counts for every `*.test.js` file
-- [ ] 3.2 Update the AGENTS.md Test Files table using the post-change counts obtained in 3.1 — `story.test.js` will be 169 tests across 9 describe blocks (168 + 1 new W5 test), `cli.test.js` remains 23 tests across 3 describe blocks; audit all other rows for drift
-- [ ] 3.3 Add universe test group descriptions to the "What It Covers" column for `story.test.js` and `cli.test.js`
+- [x] 3.1 Run `bun test` to obtain actual test counts for every `*.test.js` file
+- [x] 3.2 Update the AGENTS.md Test Files table using the post-change counts obtained in 3.1 — `story.test.js` will be 169 tests across 9 describe blocks (168 + 1 new W5 test), `cli.test.js` remains 23 tests across 3 describe blocks; audit all other rows for drift
+- [x] 3.3 Add universe test group descriptions to the "What It Covers" column for `story.test.js` and `cli.test.js`
 
 ## 4. Verification
 

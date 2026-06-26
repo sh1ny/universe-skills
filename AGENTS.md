@@ -237,8 +237,8 @@ bun run test:coverage        # tests + lcov coverage + 100% gate + fallback chec
 
 | File | Tests | What It Covers |
 |------|-------|----------------|
-| `test/cli.test.js` | 8 | CLI surface: arg parsing, help, all commands round-trip, failure paths, fallback binary smoke test |
-| `test/story.test.js` | 23 | Project lifecycle: create/scan/reindex/validate/links/export/build, schema/frontmatter contract violations, entity CRUD, symlink traversal refusals, epub/docx binary builds |
+| `test/cli.test.js` | 23 | CLI surface: arg parsing, help, all commands round-trip, failure paths, fallback binary smoke test; universe commands (init/scan/validate/report) and story-root invocation |
+| `test/story.test.js` | 169 | Project lifecycle: create/scan/reindex/validate/links/export/build, schema/frontmatter contract violations, entity CRUD, symlink traversal refusals, epub/docx binary builds; universe scaffold, resolution, validation, scan/report, regression, path safety, coverage gaps |
 | `test/frontmatter.test.js` | 6 | YAML frontmatter parse/stringify round-trip, scalar/array/object types, error paths |
 | `test/import.test.js` | 4 | Manuscript import from file/directory, name candidate extraction, rejection paths |
 | `test/continuity.test.js` | 3 | Continuity engine: dead characters, cast mismatches, numbering gaps, promise/question/completion/state contradictions |
