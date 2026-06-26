@@ -1584,6 +1584,17 @@ function universeReport(root) {
   if (universeRoot === null) {
     universeRoot = findPartialUniverseRoot(resolvedRoot);
     if (universeRoot === null) {
+      const isStoryRoot2 = fs.existsSync(path2.join(resolvedRoot, "story.md"));
+      if (isStoryRoot2) {
+        const storyMd = readMarkdown(path2.join(resolvedRoot, "story.md"), resolvedRoot);
+        if (storyMd.data.universe !== undefined) {
+          return {
+            counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+            total: 0,
+            validation: validateUniverse(resolvedRoot)
+          };
+        }
+      }
       return null;
     }
   }

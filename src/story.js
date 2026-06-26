@@ -1294,6 +1294,20 @@ export function universeReport(root) {
   if (universeRoot === null) {
     universeRoot = findPartialUniverseRoot(resolvedRoot);
     if (universeRoot === null) {
+      // If this is a story root with a universe field but no ancestor
+      // universe.md and no partial scaffold, delegate to validateUniverse
+      // to surface malformed field errors instead of printing "No universe found".
+      const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
+      if (isStoryRoot) {
+        const storyMd = readMarkdown(path.join(resolvedRoot, "story.md"), resolvedRoot);
+        if (storyMd.data.universe !== undefined) {
+          return {
+            counts: { characters: 0, locations: 0, systems: 0, factions: 0, artifacts: 0 },
+            total: 0,
+            validation: validateUniverse(resolvedRoot)
+          };
+        }
+      }
       return null;
     }
   }

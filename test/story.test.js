@@ -3104,4 +3104,24 @@ location: nowhere
     expect(report.validation.ok).toBe(false);
     expect(report.validation.errors.some((e) => e.includes("Path is not a directory"))).toBe(true);
   });
+
+  test("universeReport surfaces malformed universe field from standalone story", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Standalone", cwd });
+    const storyRoot = path.join(cwd, "standalone");
+    // Add a non-kebab universe field with no ancestor universe.md
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace("status: planning", "status: planning\nuniverse: Aetheria"), "utf8");
+    const report = universeReport(storyRoot);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors.some((e) => e.includes("must be a kebab-case id"))).toBe(true);
+  });
+
+  test("universeReport returns null for standalone story with no universe field", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Standalone", cwd });
+    expect(universeReport(path.join(cwd, "standalone"))).toBeNull();
+  });
 });
