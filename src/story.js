@@ -723,9 +723,12 @@ export function validateUniverse(root) {
       universeRoot = resolvedRoot;
     }
   }
-  if (universeRoot === null || (isStoryRoot && !storyData.universe)) {
+  if (universeRoot === null) {
     return { ok: true, errors, warnings };
   }
+  // Story under a universe but not opted in falls through to normal
+  // universe validation (scaffold/frontmatter/entities) so broken
+  // ancestors are reported instead of silently returning OK.
 
   // Scan universe entities using universeRoot (NOT storyRoot — D12 path-safety)
   const universeEntities = scanUniverse(universeRoot);

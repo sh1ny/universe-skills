@@ -2061,6 +2061,24 @@ word-count: 0
     expect(validation.errors).toEqual([]);
   });
 
+  test("validateUniverse validates ancestor universe for unlinked story root", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "Unlinked", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "unlinked");
+    // Remove the universe field — story is under a universe but not opted in
+    const storyMdPath = path.join(storyRoot, "story.md");
+    const storyMd = fs.readFileSync(storyMdPath, "utf8");
+    fs.writeFileSync(storyMdPath, storyMd.replace(/\nuniverse: aetheria/, ""), "utf8");
+    // Break the ancestor universe scaffold
+    fs.unlinkSync(path.join(universeResult.root, "characters", "_index.md"));
+    const validation = validateUniverse(storyRoot);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors).toContain("Missing required universe path: characters/_index.md");
+  });
+
   test("validateUniverse rejects non-kebab story universe field", () => {
     const cwd = makeTempDir();
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });

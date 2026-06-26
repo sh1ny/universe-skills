@@ -1095,7 +1095,7 @@ function validateUniverse(root) {
       universeRoot = resolvedRoot;
     }
   }
-  if (universeRoot === null || isStoryRoot && !storyData.universe) {
+  if (universeRoot === null) {
     return { ok: true, errors, warnings };
   }
   const universeEntities = scanUniverse(universeRoot);
