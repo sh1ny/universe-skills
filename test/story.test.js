@@ -1580,12 +1580,24 @@ status: alive
   test("universe entity files outside universeRoot are refused", () => {
     const cwd = makeTempDir();
     const universeResult = createUniverseProject({ name: "Aetheria", cwd });
-    // readEntityFiles filters to .md files in the directory; a file outside the
-    // universe directory cannot be read via readEntityFiles because the directory
-    // scan only lists files in the target directory.
+    // Create a legitimate character inside universeRoot
+    writeMarkdown(path.join(universeResult.root, "characters", "legend.md"), `
+name: Legend
+role: protagonist
+status: alive
+`, "# Legend\n");
+    // Create a sibling directory outside universeRoot that mirrors the entity path
+    const siblingDir = path.join(path.dirname(universeResult.root), `${path.basename(universeResult.root)}-outside-sibling`);
+    writeMarkdown(path.join(siblingDir, "characters", "rogue.md"), `
+name: Rogue
+role: antagonist
+status: alive
+`, "# Rogue\n");
+    // scanUniverse only reads files inside universeRoot/characters/ — rogue must be ignored
     const entities = scanUniverse(universeResult.root);
-    expect(entities.characters).toEqual([]);
-    expect(entities.locations).toEqual([]);
+    expect(entities.characters).toHaveLength(1);
+    expect(entities.characters[0].id).toBe("legend");
+    expect(entities.characters.find((c) => c.id === "rogue")).toBeUndefined();
   });
 
   test("symlinked universe directories are rejected", () => {

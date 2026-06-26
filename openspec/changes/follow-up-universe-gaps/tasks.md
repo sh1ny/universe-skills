@@ -5,9 +5,9 @@
 
 ## 2. Universe Path-Safety Sibling Containment Test (W3)
 
-- [ ] 2.1 Replace the no-op test at `test/story.test.js:1568-1577` ("universe entity files outside universeRoot are refused") with a sibling-outside-file-is-ignored test
-- [ ] 2.2 In the replacement test body, create `characters/legend.md` inside `universeRoot` and `universe-outside-sibling/characters/rogue.md` outside `universeRoot`
-- [ ] 2.3 Assert `scanUniverse(universeRoot)` returns exactly one character (`legend`) and does not include `rogue`
+- [x] 2.1 Replace the no-op test at `test/story.test.js:1568-1577` ("universe entity files outside universeRoot are refused") with a sibling-outside-file-is-ignored test
+- [x] 2.2 In the replacement test body, create `characters/legend.md` inside `universeRoot` and `universe-outside-sibling/characters/rogue.md` outside `universeRoot`
+- [x] 2.3 Assert `scanUniverse(universeRoot)` returns exactly one character (`legend`) and does not include `rogue`
 
 ## 3. AGENTS.md Test Inventory Accuracy (W4)
 
