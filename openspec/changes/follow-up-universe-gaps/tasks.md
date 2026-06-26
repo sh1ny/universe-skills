@@ -17,6 +17,6 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Run `bun run test` — confirm all tests pass including the new and modified tests
-- [ ] 4.2 Run `bun run test:coverage` — confirm 100% coverage maintained and fallback check passes
-- [ ] 4.3 Mark W3, W4, W5 as resolved in `openspec/follow-up-universe-gaps.md`
+- [x] 4.1 Run `bun run test` — confirm all tests pass including the new and modified tests
+- [x] 4.2 Run `bun run test:coverage` — confirm 100% coverage maintained and fallback check passes
+- [x] 4.3 Mark W3, W4, W5 as resolved in `openspec/follow-up-universe-gaps.md`
