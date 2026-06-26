@@ -3015,4 +3015,30 @@ location: nowhere
     expect(report.validation.ok).toBe(false);
     expect(report.validation.errors.some((e) => e.includes("Path does not exist"))).toBe(true);
   });
+
+  test("validateUniverse reports missing universe.md from non-story child dir", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(universeResult.root, "universe.md"));
+    // Validate from the non-story child directory (stories/)
+    const validation = validateUniverse(storiesDir);
+    expect(validation.ok).toBe(false);
+    expect(validation.errors).toContain("Missing required universe path: universe.md");
+  });
+
+  test("universeReport surfaces missing universe.md from non-story child dir", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(universeResult.root, "universe.md"));
+    const report = universeReport(storiesDir);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors).toContain("Missing required universe path: universe.md");
+  });
 });

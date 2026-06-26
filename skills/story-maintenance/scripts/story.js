@@ -1061,6 +1061,22 @@ function validateUniverseIdUniqueness(entities, type, errors) {
     seen.add(entity.id);
   }
 }
+function findPartialUniverseRoot(target) {
+  let cursor = path2.resolve(target);
+  while (true) {
+    if (!fs.existsSync(path2.join(cursor, "story.md"))) {
+      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
+      if (hasScaffoldPath) {
+        return cursor;
+      }
+    }
+    const parent = path2.dirname(cursor);
+    if (parent === cursor) {
+      return null;
+    }
+    cursor = parent;
+  }
+}
 function validateUniverse(root) {
   const resolvedRoot = path2.resolve(root);
   const errors = [];
@@ -1083,17 +1099,11 @@ function validateUniverse(root) {
       return { ok: false, errors, warnings };
     }
     if (universeRoot === null) {
-      let cursor = resolvedRoot;
-      while (cursor !== path2.dirname(cursor)) {
-        cursor = path2.dirname(cursor);
-        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
-        if (hasScaffoldPath) {
-          universeRoot = cursor;
-          partialScaffold = true;
-          break;
-        }
-      }
-      if (universeRoot === null) {
+      const partialRoot = findPartialUniverseRoot(resolvedRoot);
+      if (partialRoot) {
+        universeRoot = partialRoot;
+        partialScaffold = true;
+      } else {
         warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
         return { ok: true, errors, warnings };
       }
@@ -1116,22 +1126,7 @@ function validateUniverse(root) {
     }
   }
   if (universeRoot === null) {
-    if (!isStoryRoot) {
-      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
-      if (hasScaffoldPath) {
-        universeRoot = resolvedRoot;
-      }
-    } else {
-      let cursor = resolvedRoot;
-      while (cursor !== path2.dirname(cursor)) {
-        cursor = path2.dirname(cursor);
-        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
-        if (hasScaffoldPath) {
-          universeRoot = cursor;
-          break;
-        }
-      }
-    }
+    universeRoot = findPartialUniverseRoot(resolvedRoot);
   }
   if (universeRoot === null) {
     return { ok: true, errors, warnings };
@@ -1547,23 +1542,7 @@ function universeReport(root) {
   }
   let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
-    const isStoryRoot2 = fs.existsSync(path2.join(resolvedRoot, "story.md"));
-    if (!isStoryRoot2) {
-      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
-      if (hasScaffoldPath) {
-        universeRoot = resolvedRoot;
-      }
-    } else {
-      let cursor = resolvedRoot;
-      while (cursor !== path2.dirname(cursor)) {
-        cursor = path2.dirname(cursor);
-        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(cursor, p)));
-        if (hasScaffoldPath) {
-          universeRoot = cursor;
-          break;
-        }
-      }
-    }
+    universeRoot = findPartialUniverseRoot(resolvedRoot);
     if (universeRoot === null) {
       return null;
     }

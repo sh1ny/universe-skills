@@ -674,6 +674,29 @@ export function validateUniverseIdUniqueness(entities, type, errors) {
 }
 
 
+// Walk up from a target directory looking for an ancestor with partial
+// universe scaffold paths (missing universe.md but other scaffold files
+// remain). Checks the target itself and each ancestor. Skips directories
+// that contain story.md (story scaffolds aren't universe scaffolds).
+function findPartialUniverseRoot(target) {
+  let cursor = path.resolve(target);
+  while (true) {
+    if (!fs.existsSync(path.join(cursor, "story.md"))) {
+      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
+        p !== "universe.md" && fs.existsSync(path.join(cursor, p))
+      );
+      if (hasScaffoldPath) {
+        return cursor;
+      }
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) {
+      return null;
+    }
+    cursor = parent;
+  }
+}
+
 export function validateUniverse(root) {
   const resolvedRoot = path.resolve(root);
   const errors = [];
@@ -703,23 +726,11 @@ export function validateUniverse(root) {
       return { ok: false, errors, warnings };
     }
     if (universeRoot === null) {
-      // Check if an ancestor directory has partial universe scaffold paths
-      // (missing universe.md but other files remain). If so, treat it as
-      // the universe root so the required-path loop reports the missing
-      // universe.md instead of silently returning OK.
-      let cursor = resolvedRoot;
-      while (cursor !== path.dirname(cursor)) {
-        cursor = path.dirname(cursor);
-        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
-          p !== "universe.md" && fs.existsSync(path.join(cursor, p))
-        );
-        if (hasScaffoldPath) {
-          universeRoot = cursor;
-          partialScaffold = true;
-          break;
-        }
-      }
-      if (universeRoot === null) {
+      const partialRoot = findPartialUniverseRoot(resolvedRoot);
+      if (partialRoot) {
+        universeRoot = partialRoot;
+        partialScaffold = true;
+      } else {
         warnings.push(`Universe '${storyData.universe}' not found — story works in standalone mode`);
         return { ok: true, errors, warnings };
       }
@@ -745,32 +756,11 @@ export function validateUniverse(root) {
       }
     }
   }
-  // For non-story roots, if resolveUniverseRoot returns null but the target
-  // directory contains other universe scaffold paths, treat it as the universe
-  // root so the required-path loop can report the missing universe.md.
-  // For unlinked story roots, walk up ancestors looking for partial scaffolds.
+  // If universeRoot is still null, walk up from the target looking for
+  // an ancestor with partial universe scaffold paths. This covers both
+  // non-story child dirs (e.g. stories/) and unlinked story roots.
   if (universeRoot === null) {
-    if (!isStoryRoot) {
-      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
-        p !== "universe.md" && fs.existsSync(path.join(resolvedRoot, p))
-      );
-      if (hasScaffoldPath) {
-        universeRoot = resolvedRoot;
-      }
-    } else {
-      // Unlinked story root — walk ancestors for partial scaffold
-      let cursor = resolvedRoot;
-      while (cursor !== path.dirname(cursor)) {
-        cursor = path.dirname(cursor);
-        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
-          p !== "universe.md" && fs.existsSync(path.join(cursor, p))
-        );
-        if (hasScaffoldPath) {
-          universeRoot = cursor;
-          break;
-        }
-      }
-    }
+    universeRoot = findPartialUniverseRoot(resolvedRoot);
   }
   if (universeRoot === null) {
     return { ok: true, errors, warnings };
@@ -1258,34 +1248,7 @@ export function universeReport(root) {
   }
   let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
-    // Mirror validateUniverse's partial-scaffold detection: if the target
-    // (or an ancestor, for story roots) has other universe scaffold paths
-    // but is missing universe.md, treat it as the universe root so
-    // validation errors surface in the report instead of printing
-    // "No universe found".
-    const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
-    if (!isStoryRoot) {
-      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
-        p !== "universe.md" && fs.existsSync(path.join(resolvedRoot, p))
-      );
-      if (hasScaffoldPath) {
-        universeRoot = resolvedRoot;
-      }
-    } else {
-      // Walk up ancestors looking for partial scaffold (missing universe.md
-      // but other scaffold files remain).
-      let cursor = resolvedRoot;
-      while (cursor !== path.dirname(cursor)) {
-        cursor = path.dirname(cursor);
-        const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
-          p !== "universe.md" && fs.existsSync(path.join(cursor, p))
-        );
-        if (hasScaffoldPath) {
-          universeRoot = cursor;
-          break;
-        }
-      }
-    }
+    universeRoot = findPartialUniverseRoot(resolvedRoot);
     if (universeRoot === null) {
       return null;
     }
