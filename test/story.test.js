@@ -2069,6 +2069,19 @@ word-count: 0
     expect(() => createUniverseProject({ name: "Nested", cwd: subdir })).toThrow("is inside a story project");
   });
 
+  test("createUniverseProject refuses symlinked path into a story tree", () => {
+    const cwd = makeTempDir();
+    createStoryProject({ title: "Story", cwd });
+    const storyRoot = path.join(cwd, "story");
+    const subdir = path.join(storyRoot, "subdir");
+    fs.mkdirSync(subdir, { recursive: true });
+    // Create a symlink pointing into the story tree
+    const symlinkPath = path.join(cwd, "link");
+    fs.symlinkSync(subdir, symlinkPath);
+    // Use dir: "link/child" so the symlink is an intermediate component
+    expect(() => createUniverseProject({ name: "ViaSymlink", cwd, dir: "link/child" })).toThrow("is inside a story project");
+  });
+
   test("createUniverseProject refuses to overwrite existing _index.md", () => {
     const cwd = makeTempDir();
     fs.mkdirSync(path.join(cwd, "characters"), { recursive: true });

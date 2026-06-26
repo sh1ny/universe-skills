@@ -184,14 +184,30 @@ export function createUniverseProject(options) {
   }
   const displayName = titleCaseSlug(universeId);
   const root = path.resolve(options.cwd ?? process.cwd(), options.dir ?? ".");
-  if (fs.existsSync(path.join(root, "universe.md"))) {
+  // Canonicalize the path to resist symlink bypass: resolve the nearest
+  // existing ancestor with realpathSync, then rejoin the non-existent tail.
+  // This catches symlinks in intermediate path components (e.g. --dir link/child).
+  let resolvedRoot = root;
+  {
+    let existing = root;
+    const tail = [];
+    while (!fs.existsSync(existing)) {
+      tail.unshift(path.basename(existing));
+      existing = path.dirname(existing);
+    }
+    resolvedRoot = fs.realpathSync(existing);
+    if (tail.length > 0) {
+      resolvedRoot = path.join(resolvedRoot, ...tail);
+    }
+  }
+  if (fs.existsSync(path.join(resolvedRoot, "universe.md"))) {
     throw new Error(`${root} already contains a universe.md`);
   }
-  if (fs.existsSync(path.join(root, "story.md"))) {
+  if (fs.existsSync(path.join(resolvedRoot, "story.md"))) {
     throw new Error(`${root} appears to be a story project (story.md found). Use a parent directory instead.`);
   }
   // Walk ancestors to prevent nesting a universe inside a story tree
-  let storyAncestor = path.dirname(root);
+  let storyAncestor = path.dirname(resolvedRoot);
   while (storyAncestor !== path.dirname(storyAncestor)) {
     if (fs.existsSync(path.join(storyAncestor, "story.md"))) {
       throw new Error(`${root} is inside a story project (${path.join(storyAncestor, "story.md")}). Use a directory outside the story tree.`);

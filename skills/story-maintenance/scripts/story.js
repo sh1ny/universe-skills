@@ -628,13 +628,26 @@ function createUniverseProject(options) {
   }
   const displayName = titleCaseSlug(universeId);
   const root = path2.resolve(options.cwd ?? process.cwd(), options.dir ?? ".");
-  if (fs.existsSync(path2.join(root, "universe.md"))) {
+  let resolvedRoot = root;
+  {
+    let existing = root;
+    const tail = [];
+    while (!fs.existsSync(existing)) {
+      tail.unshift(path2.basename(existing));
+      existing = path2.dirname(existing);
+    }
+    resolvedRoot = fs.realpathSync(existing);
+    if (tail.length > 0) {
+      resolvedRoot = path2.join(resolvedRoot, ...tail);
+    }
+  }
+  if (fs.existsSync(path2.join(resolvedRoot, "universe.md"))) {
     throw new Error(`${root} already contains a universe.md`);
   }
-  if (fs.existsSync(path2.join(root, "story.md"))) {
+  if (fs.existsSync(path2.join(resolvedRoot, "story.md"))) {
     throw new Error(`${root} appears to be a story project (story.md found). Use a parent directory instead.`);
   }
-  let storyAncestor = path2.dirname(root);
+  let storyAncestor = path2.dirname(resolvedRoot);
   while (storyAncestor !== path2.dirname(storyAncestor)) {
     if (fs.existsSync(path2.join(storyAncestor, "story.md"))) {
       throw new Error(`${root} is inside a story project (${path2.join(storyAncestor, "story.md")}). Use a directory outside the story tree.`);
