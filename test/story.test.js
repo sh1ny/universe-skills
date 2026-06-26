@@ -1387,6 +1387,17 @@ region: North
     expect(universeReport(cwd)).toBeNull();
   });
 
+  test("universeReport surfaces validation errors for partial scaffold (missing universe.md)", () => {
+    const cwd = makeTempDir();
+    const result = createUniverseProject({ name: "Aetheria", cwd });
+    // Delete universe.md but leave scaffold dirs intact
+    fs.unlinkSync(path.join(result.root, "universe.md"));
+    const report = universeReport(result.root);
+    expect(report).not.toBeNull();
+    expect(report.validation.ok).toBe(false);
+    expect(report.validation.errors).toContain("Missing required universe path: universe.md");
+  });
+
   test("universeReport on empty universe reports zero for each type", () => {
     const cwd = makeTempDir();
     const result = createUniverseProject({ name: "Aetheria", cwd });
@@ -2045,6 +2056,22 @@ word-count: 0
     const storyMdPath = path.join(storyRoot, "story.md");
     const storyMd = fs.readFileSync(storyMdPath, "utf8");
     fs.writeFileSync(storyMdPath, storyMd.replace(/universe: aetheria/, "universe: wrong-universe"), "utf8");
+    const project = scanProject(storyRoot);
+    expect(project.universe).toBeUndefined();
+    expect(project.universeRoot).toBeUndefined();
+  });
+
+  test("scanProject does not attach universe when universe.md name is non-scalar", () => {
+    const cwd = makeTempDir();
+    const universeResult = createUniverseProject({ name: "Aetheria", cwd });
+    const storiesDir = path.join(universeResult.root, "stories");
+    fs.mkdirSync(storiesDir, { recursive: true });
+    createStoryProject({ title: "My Tale", cwd: storiesDir });
+    const storyRoot = path.join(storiesDir, "my-tale");
+    // Break universe.md by making name a list (non-scalar)
+    const universeMdPath = path.join(universeResult.root, "universe.md");
+    const universeMd = fs.readFileSync(universeMdPath, "utf8");
+    fs.writeFileSync(universeMdPath, universeMd.replace(/^name:.*$/m, "name:\n  - Aetheria"), "utf8");
     const project = scanProject(storyRoot);
     expect(project.universe).toBeUndefined();
     expect(project.universeRoot).toBeUndefined();

@@ -335,7 +335,7 @@ export function scanProject(root) {
       // Only attach the universe if the resolved id matches the story's opt-in field.
       // A mismatch means the story was moved under the wrong universe — treat as
       // standalone so continuity/report/doctor don't validate against wrong entities.
-      if (!resolvedUniverseId || resolvedUniverseId === story.data.universe) {
+      if (resolvedUniverseId && resolvedUniverseId === story.data.universe) {
         project.universe = scanUniverse(universeRoot);
         project.universeRoot = universeRoot;
       }
@@ -1188,9 +1188,25 @@ export function formatUniverseScan(result) {
 
 export function universeReport(root) {
   const resolvedRoot = path.resolve(root);
-  const universeRoot = resolveUniverseRoot(resolvedRoot);
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
-    return null;
+    // Mirror validateUniverse's partial-scaffold detection: if the target
+    // has other universe scaffold paths but is missing universe.md, treat
+    // it as the universe root so validation errors surface in the report
+    // instead of printing "No universe found". Only for non-story roots —
+    // story roots have their own characters/_index.md etc.
+    const isStoryRoot = fs.existsSync(path.join(resolvedRoot, "story.md"));
+    if (!isStoryRoot) {
+      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) =>
+        p !== "universe.md" && fs.existsSync(path.join(resolvedRoot, p))
+      );
+      if (hasScaffoldPath) {
+        universeRoot = resolvedRoot;
+      }
+    }
+    if (universeRoot === null) {
+      return null;
+    }
   }
 
   const entities = scanUniverse(universeRoot);

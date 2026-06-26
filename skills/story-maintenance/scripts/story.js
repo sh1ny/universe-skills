@@ -765,7 +765,7 @@ function scanProject(root) {
     if (universeRoot) {
       const universeMd = readMarkdown(path2.join(universeRoot, "universe.md"), universeRoot);
       const resolvedUniverseId = typeof universeMd.data.name === "string" && universeMd.data.name !== "" ? kebabCase(universeMd.data.name) : null;
-      if (!resolvedUniverseId || resolvedUniverseId === story.data.universe) {
+      if (resolvedUniverseId && resolvedUniverseId === story.data.universe) {
         project.universe = scanUniverse(universeRoot);
         project.universeRoot = universeRoot;
       }
@@ -1491,9 +1491,18 @@ function formatUniverseScan(result) {
 }
 function universeReport(root) {
   const resolvedRoot = path2.resolve(root);
-  const universeRoot = resolveUniverseRoot(resolvedRoot);
+  let universeRoot = resolveUniverseRoot(resolvedRoot);
   if (universeRoot === null) {
-    return null;
+    const isStoryRoot2 = fs.existsSync(path2.join(resolvedRoot, "story.md"));
+    if (!isStoryRoot2) {
+      const hasScaffoldPath = UNIVERSE_REQUIRED_PATHS.some((p) => p !== "universe.md" && fs.existsSync(path2.join(resolvedRoot, p)));
+      if (hasScaffoldPath) {
+        universeRoot = resolvedRoot;
+      }
+    }
+    if (universeRoot === null) {
+      return null;
+    }
   }
   const entities = scanUniverse(universeRoot);
   const isStoryRoot = fs.existsSync(path2.join(resolvedRoot, "story.md"));
